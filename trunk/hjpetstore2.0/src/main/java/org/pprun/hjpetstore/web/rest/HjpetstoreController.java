@@ -41,7 +41,7 @@ public class HjpetstoreController extends BaseController {
      * <p>
      * For example: user pprun <br />
      * {@code 
-     * curl -u pprun:pprunpprun -H 'Content-Type: application/xml' -H 'Accept: application/xml' 'http://localhost:8080/hjpetstore/rest/products/dog?apikey=bc7163dab8eb79a9867b4604b46b0328e9ace555ef5d9526e1fcd748f9864bf85d59e97c044a2d9795736753c2b0d77cd085eb05d854e5849f42f37f85851220&signature=&page=1&max=100'
+     * curl -H 'Content-Type: application/xml' -H 'Accept: application/xml' -H 'Date: Fri 2011-02-11 19:10:46 UTC' 'http://localhost:8080/hjpetstore/rest/products/dog?apiKey=e4fae4f09fd3b2e6201b7b213d4deae7&signature=zVe5WbWJuJuPQpFLJVpJ4XMYTThdROf5iaU76zdWLweeKvGSLBBJTAce4BayNH07x3poa8gHsIxLkIpFXsd5OQ%3D%3D&page=1&max=100'
      * }
      *
      * @param apiKey
@@ -50,7 +50,6 @@ public class HjpetstoreController extends BaseController {
      */
     @RequestMapping(value = "/products/{keyword}", method = RequestMethod.GET)
     public ModelAndView getProductsByKeyword(
-            //@RequestParam("apikey") String apiKey,
             @RequestParam("page") int page,
             @RequestParam("max") int max,
             @PathVariable("keyword") String keyword) {
