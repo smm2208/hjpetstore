@@ -35,7 +35,8 @@ import org.w3c.dom.Node;
 
 /**
  * Swing Client using RestTemplate to call public service.
- * 
+ * {@code curl -H 'Content-Type: application/xml' -H 'Accept: application/xml' -H 'Date: Fri 2011-02-11 19:10:46 UTC' 'http://localhost:8080/hjpetstore/rest/products/dog?page={page}&max={max}apiKey=e4fae4f09fd3b2e6201b7b213d4deae7&signature=zVe5WbWJuJuPQpFLJVpJ4XMYTThdROf5iaU76zdWLweeKvGSLBBJTAce4BayNH07x3poa8gHsIxLkIpFXsd5OQ%3D%3D&page=1&max=100'
+ * }
  * @author pprun
  */
 public class SearchProductListRest {
