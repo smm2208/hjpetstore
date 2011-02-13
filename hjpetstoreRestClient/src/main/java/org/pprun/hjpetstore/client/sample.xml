@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<products>
+    <product>
+        <image>dog2.gif</image>
+        <productDesc>Friendly dog from England</productDesc>
+        <productName>Bulldog</productName>
+    </product>
+    <product>
+        <image>dog6.gif</image>
+        <productDesc>Cute dog from France</productDesc>
+        <productName>Poodle</productName>
+    </product>
+    <product>
+        <image>dog5.gif</image>
+        <productDesc>Great dog for a Fire Station</productDesc>
+        <productName>Dalmation</productName>
+    </product>
+    <product>
+        <image>dog1.gif</image>
+        <productDesc>Great family dog</productDesc>
+        <productName>Golden Retriever</productName>
+    </product>
+    <product>
+        <image>dog5.gif</image>
+        <productDesc>Great hunting dog</productDesc>
+        <productName>Labrador Retriever</productName>
+    </product>
+    <product>
+        <image>dog4.gif</image>
+        <productDesc>Great companion dog</productDesc>
+        <productName>Chihuahua</productName>
+    </product>
+    <product>
+        <image>lizard3.gif</image>
+        <productDesc>Doubles as a watch dog</productDesc>
+        <productName>Rattlesnake</productName>
+    </product>
+</products>
