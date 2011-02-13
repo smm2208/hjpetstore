@@ -1,3 +1,0 @@
-#screenshot
-
-http://code.google.com/p/hjpetstore/source/browse/trunk/hjpetstore2.0/src/main/webapp/www/rest-client.png
