@@ -27,6 +27,8 @@ import org.springframework.web.context.WebApplicationContext;
 import org.springframework.web.context.support.WebApplicationContextUtils;
 
 /**
+ * This filter authenticate the user by calculating the signature of the request.
+ * For more detail, see <a href="http://hi.baidu.com/quest2run/blog/item/2e1cd8266c2e997335a80f7d.html">Cloud Security</a>.
  *
  * @author <a href="mailto:quest.run@gmail.com">pprun</a>
  */
