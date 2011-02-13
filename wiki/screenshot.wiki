@@ -1,3 +1,5 @@
-#Rest Client
+# Rest Client=
+# A JAVA Swing as Rest Client call to HJpetstore =
+`http://localhost:8080/hjpetstore/rest/products/{keyword}?page={page}&max={max}apiKey=e4fae4f09fd3b2e6201b7b213d4deae7&signature=zVe5WbWJuJuPQpFLJVpJ4XMYTThdROf5iaU76zdWLweeKvGSLBBJTAce4BayNH07x3poa8gHsIxLkIpFXsd5OQ%3D%3D&page=1&max=100' `
 
 http://hjpetstore.googlecode.com/files/rest-client.png
