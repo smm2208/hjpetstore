@@ -34,7 +34,7 @@ import org.w3c.dom.Element;
 import org.w3c.dom.Node;
 
 /**
- * Unit Test using RestTemplate to call public service.
+ * Swing Client using RestTemplate to call public service.
  * 
  * @author pprun
  */
