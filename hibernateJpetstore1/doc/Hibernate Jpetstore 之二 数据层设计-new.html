@@ -1,0 +1,1041 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+  <meta content="text/html; charset=GBK" http-equiv="content-type">
+  <title>Hibernate Jpetstore 之二 数据层技术</title>
+  <style>
+pre {
+padding: 5px;
+border-style: solid;
+border-width: 1px;
+border-color: #CCCCCC;
+background-color: #F4F4F4;
+}
+  </style>
+</head>
+<body>
+<span style="color: rgb(0, 0, 0); font-style: italic;"><a name="top"></a>Hibernate
+JPetstore 系列</span><span style="font-style: italic;">之二</span><br>
+<h1>数据层技术</h1>
+&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;
+&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; &nbsp; By&nbsp; <a
+ href="mailto:pzgyuanf@yahoo.com.cn">pprun</a><br>
+<br>
+<h2><a name="1"></a>文档内容</h2>
+<div style="margin-left: 40px;">
+<ul>
+  <li><a href="#2">概览</a></li>
+  <ul>
+    <li><a href="#2.1">面象对象与结构化的错配</a></li>
+    <li><a href="#2.2">Java 代码：面向对象的表示</a></li>
+    <li><a href="#2.3">数据库表：结构化的数据表示</a></li>
+  </ul>
+  <li><a href="#3">DAO调用序列图</a></li>
+  <li><a href="#4">Strtus &lt;-- Spring --&gt; DAO (Spring 作为 DAO 与
+Struts 的桥梁)</a></li>
+  <li><a href="#5">实体关系图</a></li>
+  <li><a href="#6">实体关系映射(O/R Mapping)</a></li>
+  <ul>
+    <li><a href="#6.1">Java代码中的关系表示</a></li>
+    <ul>
+      <li><a href="#6.1.1">单向关系</a></li>
+      <li><a href="#6.1.2">双向关系</a></li>
+    </ul>
+  </ul>
+  <ul>
+    <li><a href="#6.2">Hibernate 的关系表示</a></li>
+    <ul>
+      <li><a href="#6.2.1">account - category</a></li>
+      <li><a href="#6.2.2">account - order</a></li>
+    </ul>
+    <li><a href="#6.3">主键映射</a></li>
+    <li><a href="#6.4">其他映射</a></li>
+    <li><a href="#6.5">二级缓存映射</a></li>
+  </ul>
+  <ul>
+    <li><a href="#6.6">Hibernate 配置文件</a></li>
+    <li><a href="#6.7">Ehcache</a></li>
+  </ul>
+  <li><a href="#7">总结</a></li>
+</ul>
+</div>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<span style="font-style: italic;">在阅读本篇文章之前，请先仔细阅读 Hibernate Jpetstore
+之一：数据层　的相关内容。<br>
+此篇文章中或多或少会重复一些系列之一的相关内容，放在这里以达到理解的连续性。<br>
+再有，在讨论时，我不时地会“跑题”，这也是为了将大量的信息转达出来，因为象这种书面形式的机会实在难得。<br>
+</span><br>
+<h2><a name="2"></a>概览</h2>
+<div style="text-align: right;"><a href="#top"><small>回到顶端</small></a><br>
+　<br>
+</div>
+<br>
+一般来说，数据层设计的好坏直接关系到整个系统的成败。在关系数据库占工业主导地位的今天，不论采用何种数据层技术，必然牵涉到数据库表，以及表与表之间
+的关系。值得注意的是，我们面对的项目需求文档，我们的工作（至少是设计者的工作）是从文档中找到“有意义”的名词，对于面向对象的设计方法来说，就是把
+这些名词表示为对象；（文档中与该名词有关的约束，则作为对象的属性，而与之相关的动词就是该对象的行为，即函数或方法）<br>
+你可能会问，我们是在谈数据层技术，怎么突然转到了面向对象的概念了？<br>
+是的，在面向对象编程语言占主导地位，而数据管理与存储技术（即数据库）仍处在“结构化”的今天，我不得不寻求一种折衷的方案，来将<span
+ style="font-weight: bold;">程序的面向对象化</span>与<span
+ style="font-weight: bold;">数
+据的结构化</span>间的“错配”的影响减到最小。Hibernate 即是这一方案中的先行者。<br>
+<br>
+前面这个回答虽然简单地道出了问题的所在，并以 Hibernate
+作出了回答，但是是否真正明白了呢？我想只有在项目中真正体验过数据层设计后才会悟出这句话的真谛。但我这里还是打算介绍一下这几个词语：面象对
+象，结构化及它俩的错配。<br>
+<br>
+<br>
+<h3><a name="2.1"></a>面象对象与结构化的错配</h3>
+<div style="text-align: right;"><a
+ href="Hibernate%20Jpetstore%20%D6%AE%B6%FE%20%CA%FD%BE%DD%B2%E3%C9%E8%BC%C6.html#top"><small>回
+到顶端</small></a><br>
+</div>
+<br>
+需求：<span style="font-weight: bold;">用户</span>可以使用多种<span
+ style="font-weight: bold;">支付方式</span><span
+ style="font-weight: bold; font-style: italic;">付款</span>：<span
+ style="font-weight: bold;">如信用卡</span>，<span style="font-weight: bold;">银
+行转帐</span> ...<br>
+名词：用户, 信用卡，银行转帐<br>
+动词：付款<br>
+<br>
+<span style="font-weight: bold;">用户</span>可以用 <span
+ style="font-family: monospace;">User </span>来表示，而因为有多种支付方式，而每种支付方式必然存在
+着某些共性或相同的动作，因此可以用一个<span style="font-weight: bold;">支付详情</span>来作为父类
+BillingDetail, 而<span style="font-weight: bold;">信用卡</span>可用子类
+CreditCard 来表示，<span style="font-weight: bold;">银行转帐</span>可以用
+BankAccount 来表示。为了使讨论简化，我们现在只考虑父类 BillingDetail。<br>
+<br>
+付款 bill() 方法由子类实现对应的付款功能。<br>
+<br>
+<br>
+<h4><a name="2.2"></a>Java 代码：面向对象的表示</h4>
+<div style="text-align: right;"><a
+ href="Hibernate%20Jpetstore%20%D6%AE%B6%FE%20%CA%FD%BE%DD%B2%E3%C9%E8%BC%C6.html#top"><small>回
+到顶端</small></a><br>
+</div>
+<br>
+<span class="921372908-18012007">
+<pre>public class User {<br><br>	private String name;<br><br>	private String sex;<br><br>	private String address;<br><br><span
+ style="color: rgb(204, 0, 0);">	// 因为用户可以多种支付方式，因此采用集合类 Set</span><br>	private Set&lt;BillingDetail&gt; billingDetails;<br><br>	// Accessor methods (getter/setter), business methods, etc.<br>	...<br><br>	...<br><br>}<br><br><br><br>public abstract class BillingDetail {<br><br>	private String accountNumber;<br><br>	private String accountName;<br><br>	private String accountType;<br><br
+ style="color: rgb(204, 0, 0);"><span style="color: rgb(204, 0, 0);">	// 每个支付详情仅属于一个用户，因为支付信息中有帐户名，帐号之类的信息</span><br>	private User user;<br><br> 	// Accessor methods (getter/setter), business methods, etc.<br><br>	...<br><br>	public abstract void bill();<br><br>	...<br>}<br><br></pre>
+</span><br>
+<br>
+<h4><a name="2.3"></a>数据库表：结构化的数据表示</h4>
+<div style="text-align: right;"><a
+ href="Hibernate%20Jpetstore%20%D6%AE%B6%FE%20%CA%FD%BE%DD%B2%E3%C9%E8%BC%C6.html#top"><small>回
+到顶端</small></a><br>
+</div>
+<br>
+<span class="921372908-18012007">
+<pre>create table USER (<br>	NAME varchar(15) not null primary key,<br>	SEX  varchar(1) not null, -- 'M' Male, 'F' Female<br>	ADDRESS varchar(100)<br>)<br><br>create table BILLING_DETAILS (<br>	ACCOUNT_NUMBER varchar(10) not null primary key,<br>	ACCOUNT_NAME varchar(50) not null,<br>	ACCOUNT_TYPE varchar(2) not null,<br>	NAME varchar(15) foreign key references user<br>)</pre>
+</span><br>
+注意，从 USER 的 create table 语句根本看不出它与 BILLING_DETAILS 有什么关系，但当我们看到
+BILLING_DETAILS 中的外键约束行 <span style="font-weight: bold;">NAME
+varchar(15) foreign key references user</span> 时，才可以得知 USER 与
+BILLING_DETAILS 是相关联的，就上述建表语句来讲，用户与付款详情的关系为一对多关系，表示为为 <span
+ style="font-weight: bold; color: rgb(204, 0, 0);">USER --- (1..*)
+---&gt; BILLING_DETAILS<br>
+<br>
+</span>但是如果外键约束为： <br>
+<span class="921372908-18012007">
+<pre>NAME <span style="color: rgb(204, 0, 0);">unique</span> varchar(15) foreign key references user</pre>
+</span>则它们之间的关系成了一对一的关系了，<span
+ style="font-weight: bold; color: rgb(204, 0, 0);">USER --- (1..1)
+---&gt; BILLING_DETAILS</span><br>
+<br>
+<br>
+但是对于面向对象的程序而言，我们一眼就能看出它们之间存在关系，而且我们很快就可以写出下面的代码：<br>
+<br>
+从 User 来找到对应的 BillingDetail<br>
+<pre>Set billingDetails = aUser.getBillingDetails();<br><br>for (Iterator i = billingDetails.iterator(); i.hasNext(); ) {<br>	String accountNumber = (BillingDetail)i.next()).getAccountNumber();<br>	...<br>}<br></pre>
+<br>
+或，从 BillingDetail 找到对应的 User:<br>
+<pre>User aUser = billingDetail.getUser();<br>String address = aUser.getAddress();<br><br></pre>
+<br>
+对于结构化的数据，我们采用 SQL：<br>
+<pre>select u.ADDRESS, bd.ACCOUNT_NUMBER from USER u, BILLING_DETAIL bd where bd.NAME = u.NAME and u.NAME = '悟空';</pre>
+也许从乍一看，并看不出其中的问题，但是对于象上述这样需要得到两个相关表中的数据（获得用户“悟空”的地址和帐号），因为数据是分布在两个表中，所以必
+须将两个表联合 (join, 这个词是出自于标准的SQL: select u.ADDRESS, bd.ACCOUNT_NUMBER from
+USER u <span style="font-weight: bold;">joint </span>BILLING_DETAIL
+bd <span style="font-weight: bold;">on </span>bd.NAME = u.NAME where
+u.NAME = '悟空'; 这与上面的写法效果是等同的)，联合意味着扫描两张表。<br>
+<br>
+而对于面向对象的语言，我们可以轻松地从一个对象访问到另一个对象，只要对象中包含了被访问对象的引用即可。我们也可以轻易地看出它们之间的关系，比如
+Use 包含一个集合类型 Set 的 BillingDetail引用，则可知其包含多个 BillingDetail, 而
+BillingDetail 只包含单个的 User 引用，因此它仅对应一个 User.
+而结构化的形式，如SQL则一定要通过引入附加的关键字才能将这一情况加以区分，如 unique, foriegn key<br>
+<br>
+所谓的<span style="font-weight: bold;">面向对象关系型数据库</span>(如：db4o)正在努力地解决结构化的
+问题，但由于大部分工业基础已经建立在传统的<span style="font-weight: bold;">关系型数据库</span>的模式之
+上，因此变革将肯定是缓慢的，有时甚至不大可能。<br>
+<br>
+<br>
+<br>
+<h2><a name="3"></a>DAO调用序列图</h2>
+<div style="text-align: right;"><a
+ href="Hibernate%20Jpetstore%20%D6%AE%B6%FE%20%CA%FD%BE%DD%B2%E3%C9%E8%BC%C6.html#top"><small>回
+到顶端</small></a><br>
+</div>
+<br>
+<div style="text-align: right;"><br>
+<div style="text-align: left;">1. 首先，所有的DAO是在 Spring 的应用上下文加载时初始化的。<br>
+在 dataAccessContext-hibernate.xml 中有：<br>
+<pre>  <span style="color: rgb(204, 0, 0);">&lt;!-- 每个DAO的实现都需要 Hibernate 的 sessionFactory 属性，该对象相当于普通的JDBC的连接对象，因此其是用来与数据库进行会话的 --&gt;</span><br>  &lt;bean id="accountDao" class="org.springframework.samples.jpetstore.dao.hibernate.HibernateAccountDao"&gt;<br>    &lt;property name="sessionFactory" ref="sessionFactory"/&gt;<br>  &lt;/bean&gt;<br>  <br>  &lt;bean id="categoryDao" class="org.springframework.samples.jpetstore.dao.hibernate.HibernateCategoryDao"&gt;<br>    &lt;property name="sessionFactory" ref="sessionFactory"/&gt;<br>  &lt;/bean&gt;<br>  <br>  &lt;bean id="productDao" class="org.springframework.samples.jpetstore.dao.hibernate.HibernateProductDao"&gt;<br>    &lt;property name="sessionFactory" ref="sessionFactory"/&gt;<br>  &lt;/bean&gt;<br>  <br>  &lt;bean id="itemDao" class="org.springframework.samples.jpetstore.dao.hibernate.HibernateItemDao"&gt;<br>    &lt;property name="sessionFactory" ref="sessionFactory"/&gt;<br>  &lt;/bean&gt;<br>  <br>  &lt;bean id="orderDao" class="org.springframework.samples.jpetstore.dao.hibernate.HibernateOrderDao"&gt;<br>    &lt;property name="sessionFactory" ref="sessionFactory"/&gt;<br>  &lt;/bean&gt;</pre>
+<br>
+<br>
+<br>
+2. 客户端是通过 Facade 接口来与DAO进行交互的。<br>
+<br>
+在 applicationContext.xml 中有：<br>
+<pre><span style="color: rgb(204, 0, 0);">&lt;!-- 结合类 PetStoreImpl 中的 setXXXDao 方法，这种方式在 AOP 的术语中叫做基于 setter 的依赖注入；</span><br
+ style="color: rgb(204, 0, 0);"><span style="color: rgb(204, 0, 0);">　　 还有一种是基于构造器的依赖注入，即将所有的依赖关系在构造器中一并初始化好. --&gt;</span><br> &lt;bean id="petStore" class="org.springframework.samples.jpetstore.domain.logic.PetStoreImpl"&gt;<br>    &lt;property name="accountDao" ref="accountDao"/&gt;<br>    &lt;property name="categoryDao" ref="categoryDao"/&gt;<br>    &lt;property name="productDao" ref="productDao"/&gt;<br>    &lt;property name="itemDao" ref="itemDao"/&gt;<br>    &lt;property name="orderDao" ref="orderDao"/&gt;<br>  &lt;/bean&gt;<br><br><br></pre>
+<br>
+3. 而 PetStoreImpl 中有：<br>
+<pre>public class PetStoreImpl implements PetStoreFacade, OrderService {<br><br>  <span
+ style="color: rgb(204, 0, 0);">// 对应于上面配置文件中的列出的所有属性(property) </span> <br>  private AccountDao accountDao;<br>  <br>  private CategoryDao categoryDao;<br>  <br>  private ProductDao productDao;<br>  <br>  private ItemDao itemDao;<br>  <br>  private OrderDao orderDao;<br>  <br>  //-------------------------------------------------------------------------<br>  // <span
+ style="color: rgb(204, 0, 0);">基于 setter 的依赖注入方式</span> (Setter methods for dependency injection)<br>  //-------------------------------------------------------------------------<br>  <br>  public void setAccountDao(AccountDao accountDao) {<br>    this.accountDao = accountDao;<br>  }<br>  <br>  public void setCategoryDao(CategoryDao categoryDao) {<br>    this.categoryDao = categoryDao;<br>  }<br>  <br>  public void setProductDao(ProductDao productDao) {<br>    this.productDao = productDao;<br>  }<br>  <br>  public void setItemDao(ItemDao itemDao) {<br>    this.itemDao = itemDao;<br>  }<br>  <br>  public void setOrderDao(OrderDao orderDao) {<br>    this.orderDao = orderDao;<br>  }<br><br></pre>
+<br>
+这样，就将初始化出来的所有DAO对象"注入" (通过 setXXXDao(XXXDao) 方法) 到 Facade 的实现类
+PetStoreImpl<br>
+<br>
+</div>
+<br>
+</div>
+<div style="text-align: center;"><img alt="DAO 调用序列图" title="DAO 调用序列图"
+ src="images/dao_seq.png" style="width: 954px; height: 558px;"><br>
+</div>
+<br>
+<br>
+<br>
+4. 好，我们现在来看看在这个应用中有几个地方使用这个门面BEAN来进行DAO操作。<br>
+首先可以肯定的是，有了 PetStoreFacade 这个接口（及其实现类
+PetStoreImpl)，永远不出现直接初始化某个DAO的代码，如：<br>
+<br>
+<pre style="text-decoration: line-through;">AccountDao accountDao = new HibernateAccountDao();</pre>
+如果不是这样的话，我们前面这几步 1, 2, 3 就白做了，一个个来看：<br>
+1. 在　dataAccessContext-hibernate.xml 配置这些DAO干什么？ 为了在应用 加载/部署
+时就把它们初始化出来。我们只需要保证每个配置 bean 有默认构造器。（我们看看包<span
+ style="font-family: monospace;">org.springframework.samples.jpetstore.dao.hibernate</span>　
+所有的
+HibernateXXXDao就可以看到，它们都没有定义任何构造器，那么则意味着编译器会自动产生一个默认构造器 -- 无参数的 public
+构造器，这正好符合要求)<br>
+<br>
+2. 在 applicationContext.xml 把这些初始化好的DAO注入到门面接口PetStoreFacade的实现类
+PetStoreImpl干什么？因为这个门面，在门里边汇总了所有的DAO，既然已经都初始化出来了，把它们注入进来是很简单的（采用了
+Setter 注入方式)<br>
+<br>
+3. 采用 Setter 注入方式　把配置中的DAO注入进来。<br>
+<br>
+<br>
+<h2><a name="4"></a>Strtus &lt;-- <span style="color: rgb(255, 0, 0);">Spring</span>
+--&gt; DAO (Spring 作为 DAO 与 Struts 的桥梁)</h2>
+<div style="text-align: right;"><a
+ href="Hibernate%20Jpetstore%20%D6%AE%B6%FE%20%CA%FD%BE%DD%B2%E3%C9%E8%BC%C6.html#top"><small>回
+到顶端</small></a><br>
+</div>
+<br>
+因为我们知道，在写程序时最好是使用接口进行类型声明，如：<br>
+<pre>Map map = new HashMap();</pre>
+这样，在以后有更好的实现时，切换到其它实现后，调用端不需要改变，因这个类型是 Map接口, 不是实现类
+HashMap。但有一种情况例外，如果你的代码中这样：<br>
+<br>
+<pre>((HashMap)map).XXX;</pre>
+这样的话，那么从一种实现平滑切换到接口的另一种实现是不可能的。但是对于 HashMap 是不需要这样的，因为HashMap 所暴露的方法和
+Map 是一样的，也就是说 HashMap
+没有增加任何方法，所以强制转型是没有意义的，从易扩展（考虑到可能切换到另一种实现）的角度来看，这反而是自己给自己找麻烦。<br>
+所以在我们自己的类设计过程中，这些都可以借鉴的。<br>
+<br>
+<br>
+在　NetBeans 中, 选中 PetStoreFacade ，右击 | Find Usages, 在弹出窗口中选择 'Next' :<br>
+在底下列出了所有使用到PetStoreFacade的地方:<br>
+1.排除 以 spring 结尾的包（因为那是 SpringMVC　用到的），<br>
+2.以logic
+结尾的包中除一个是在实现类PetStoreImpl的声明之外，还有一个是SendOrderConfirmationEmailAdvice
+中有到了，　但这个是采用 Spring 的面象方面 (AOP) 的拦截机，先忽略它。<br>
+3.以 struts 结尾的包正是我们所关心的，我们看到，只有一个类 BaseAction 中用到了这个门面接口。<br>
+<br>
+乍一想，有点好奇，但当我们深入到以 struts 结尾的这个包中时，我们发现，所有的 Action
+（即动作，对应页面的提交按钮，链接等）都是从这个 BaseAction 派生的。<br>
+再有，我们这篇文章的主题是数据访问层技术，所以作为数据层的调用者，只能是控制器层组件，不可能是数据层内自己的对象，更不可能是表示层组件，如
+Struts的 FormBean。<br>
+所以这是一个完美的设计。<br>
+<br>
+我们看一下这样关键的类的代码，代码很简单：<br>
+<br>
+<pre>/**<br> * <span style="color: rgb(204, 0, 0);">Superclass for Struts actions in JPetStore's web tier.</span><br> *<br><span
+ style="color: rgb(255, 102, 0);"> * &lt;p&gt;Looks up the Spring WebApplicationContext via the ServletContext</span><br
+ style="color: rgb(255, 102, 0);"><span style="color: rgb(255, 102, 0);"> * and obtains the PetStoreFacade implementation from it, making it</span><br
+ style="color: rgb(255, 102, 0);"><span style="color: rgb(255, 102, 0);"> * available to subclasses via a protected getter method.</span><br
+ style="color: rgb(255, 102, 0);"><span style="color: rgb(255, 102, 0);"> *</span><br> <span
+ style="color: rgb(51, 102, 255);">* &lt;p&gt;As alternative to such a base class, consider using Spring's</span><br
+ style="color: rgb(51, 102, 255);"><span
+ style="color: rgb(51, 102, 255);"> * ActionSupport class for Struts, which pre-implements</span><br
+ style="color: rgb(51, 102, 255);"><span
+ style="color: rgb(51, 102, 255);"> * WebApplicationContext lookup in a generic fashion.</span><br> *<br> * @author Juergen Hoeller<br> * @since 30.11.2003<br> * @see #getPetStore<br> * @see org.springframework.web.context.support.WebApplicationContextUtils#getRequiredWebApplicationContext<br> * @see org.springframework.web.struts.ActionSupport<br> */<br>public abstract class BaseAction extends Action {<br>  <br>  private PetStoreFacade petStore;<br>  <br>  public void setServlet(ActionServlet actionServlet) {<br>    super.setServlet(actionServlet);<br>    if (actionServlet != null) {<br>      // <span
+ style="color: rgb(255, 0, 0);">fixed by pprun, must be synchronized</span><br>      synchronized (this) {<br>        ServletContext servletContext = actionServlet.getServletContext();<br>        WebApplicationContext wac =<br>                WebApplicationContextUtils.getRequiredWebApplicationContext(servletContext);<br>        this.petStore = (PetStoreFacade) wac.getBean("petStore");<br>      }<br>    }<br>  }<br>  <br>  protected PetStoreFacade getPetStore() {<br>    return petStore;<br>  }<br>  <br>}</pre>
+<br>
+1. 首先我们从Struts的 Action 派生下来，是为了 override setServlet
+方法，super.setServlet(actionServlet) 这一句是没有被覆盖时的默认动作，即，将 web.xml 中配置的
+ActionServlet 引用进来，这样所有的 Action 都可引用这个 ActionServlet, 如果需要的话。<br>
+&nbsp;<br>
+2. 但我最主要的目的不是为了重复 1. 这个根本没有必要的代码，而是为了将门面接口的实现类放到这个 BaseAction 中，这样，所有的
+BaseAction 子类，就可以直接 getPetStore()
+获得门面了，有了门面了，所有的DAO及DAO的方法都是通过这个门面来进行调用的。<span style="font-weight: bold;">这
+就是门面这个词最好的解释。<br>
+<br style="font-weight: bold;">
+</span>3. 我们来看看怎么得到在 applicationContext.xml 配置的门面的实现类:<br>
+<pre>&lt;bean id="petStore" class="org.springframework.samples.jpetstore.domain.logic.PetStoreImpl"&gt;</pre>
+这个配置告诉我们这个实现类的 Bean&nbsp; id 为 petStore, class 为门面的实现类 PetStoreImpl.<br>
+<br>
+<br>
+<pre>        ServletContext servletContext = actionServlet.getServletContext();<br>        WebApplicationContext wac =<br>                WebApplicationContextUtils.getRequiredWebApplicationContext(servletContext);<br>        this.petStore = (PetStoreFacade) wac.getBean("petStore");</pre>
+正如我经常强调的，所有的 Java Web 框架都离不开 Servlet, Spring与WEB相关的组件也不例外，它需要
+ServletContext 来初始化它的专有名词 WebApplicationContext,<br>
+但只要得到了 servletContext, 初始化工作很容易，利用 Spring 提供的工具类
+WebApplicationContextUtils 的 getRequiredWebApplictionContext 方法，将得到的
+servletContext　传进去即可。<br>
+那么怎样才能得到 servletContext 呢？如果对 Servlet 熟悉的话，任何 Servlet- abcServlet都有
+abcServlet.getServletContext()方法，它其实是
+abcServlet.getServletConfig().getServletContext() 的简化版。<br>
+<br>
+再看看，<br>
+<pre>super.setServlet(actionServlet);</pre>
+<br>
+所以只需从 actionServlet.getServletContext(); 然后传入到Spring中，这样 Spring 就成了 DAO
+与 Struts 的桥梁了：<br>
+<br>
+<pre>        this.petStore = (PetStoreFacade) wac.getBean("petStore");</pre>
+<br>
+Spring, 关键的东西就是它的配置文件，在程序中表示为接口： ApplicationContext,
+对WEB应用就是其子接口：WebApplicationContext。　一旦Sping的这个（些）上下文后，所有在配置文件中的东西，在
+Spring 都是 Bean,得到它们是很容易的。因为所有的配置的 Bean 都有一个 id, 并指定了其的类型 class,
+且正如我们前面所说，要符合 Bean, 必须需要
+默认构造器（如果你定义了构造器的话，那么你不得不要写一个默认构造器，因为这时编译器不再为你生成它了，但如果你一个构造器都没指定的话，可以让编译器
+Javac 来为你生成，采用什么策略取决于你，但为了清晰起见，最好任何可初始化的类都给出默认构造器，这也是IDE为什么每次 new
+一个类时，它都会为你生成的原因）<br>
+<br>
+getBean 的参数即是你所想得到的 Bean 的 id, 在你在 ApplicationContext.xml
+中配置时，就指定了，则在应用初始化时就把它 new 出来了，也就是说所有配置的 Bean
+在程序一初始化时都给创建出来了，只等待你来用吧。这也就是有时为什么叫 Spring 的上下文为 Bean
+容器的原因。（负面影响是，程序的初始化时间大延长了，但对于WEB应用而言，这并不是什么大不了的，谁你天天重启应用服务器呢？）<br>
+<br>
+<br>
+4. web.xml 文件中告诉我们，所有的Action 都是由这个 Servlet 处理的。(具体的内容会在后续的系列中介绍)<br>
+&nbsp;<br>
+<pre>  &lt;servlet&gt;<br>    &lt;servlet-name&gt;action&lt;/servlet-name&gt;<br>    &lt;servlet-class&gt;org.apache.struts.action.ActionServlet&lt;/servlet-class&gt;<br>    &lt;load-on-startup&gt;3&lt;/load-on-startup&gt;<br>  &lt;/servlet&gt;</pre>
+<br>
+<br>
+再次证实，所有的 Java Web 框架离不开 Servlet, 如果你们不再怀疑这句话，可以去买本 Servlet
+的中文版的书，我是通过看所有的英文版的资料和API来学习的。虽然我没买过 Servlet
+相关的书，但并不说明它不重要，恰恰是因为我当时也误解了。<br>
+<br>
+搜索一下 china-pub, 发现所有与 Servlet 相关的书都是在2002 年之前出的，这说明， Servlet
+是一个稳定的技术，自从规范 2.3 版（这一版加入了 Filter)以来，几乎没有引入新的特征，所以没有必要再写新书了，但据说下一版,
+Java EE 6 将会有很大的变化，这是为了迎合新技术，如 AJAX。<br>
+考虑到对 Wrox 的熟悉，这本应该是我们那一系列中被我曾经遗漏的:（<a
+ href="http://www.china-pub.com/computers/common/info.asp?id=8226">Beginning
+Java</a>, <a
+ href="http://www.china-pub.com/computers/common/info.asp?id=5660">J2EE1.3</a>
+, <a href="http://www.china-pub.com/computers/common/info.asp?id=4887">EJB</a>
+, <a href="http://www.china-pub.com/computers/common/info.asp?id=6425">JSP</a>&nbsp;
+这几本都在我们的书架上了)<br>
+<a href="http://www.china-pub.com/computers/common/info.asp?id=6423">Professional
+Java Servlets 2.3</a><br>
+<br>
+所以为了彻底弄清楚 Servlet 技术，应该从这开始。<br>
+<br>
+<br>
+<br>
+<h2><a name="5"></a>实体关系图</h2>
+<div style="text-align: right;"><a
+ href="Hibernate%20Jpetstore%20%D6%AE%B6%FE%20%CA%FD%BE%DD%B2%E3%C9%E8%BC%C6.html#top"><small>回
+到顶端</small></a><br>
+</div>
+<br>
+实体关系图 (ERD - Entity Relationship Diagram, 以下是在 JDeveloper
+中生成的，很方便，想知道怎么生成的话，我可以在 MSN
+上告诉你们步骤，但你们先得告诉我你们想知道，这对于一个项目，如果是建立在已经存在的数据库之上时特别有用，因为一看到这图，所有的关系一目了然。
+我想，随着你们的工作经历的增加，你们会意识到，一个项目如果是建立在没有存在的数据库之上时，这是罕见的，也是特别幸运的)<br>
+<br>
+<br>
+account&nbsp;&nbsp;&nbsp; &nbsp;&nbsp; 宠物店的用户表示<br>
+orders&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; 购物清单<br>
+lineitem&nbsp;&nbsp; &nbsp;&nbsp; 购物清单中的中的每一项 (可以想象，我们到超市也可以一下买一条烟，两瓶酒
+...)<br>
+item&nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp;&nbsp; 包含商品的详细信息，比如 黄果树烟：单价
+46元，厂家 贵州卷烟厂 ...<br>
+supplier&nbsp;&nbsp; &nbsp;&nbsp; 商品提供商，一般也称厂商<br>
+inventory&nbsp;&nbsp; &nbsp; 商品库存信息<br>
+<br>
+<br>
+<br>
+<br>
+<div style="text-align: center;"><img alt="实体关系图" title="实体关系图"
+ src="images/erd.png" style="width: 855px; height: 814px;"><br>
+</div>
+<br>
+<br>
+<br>
+<br>
+<span style="color: rgb(255, 0, 0); font-weight: bold;"></span><br>
+<br>
+<h2><a name="6"></a>实体关系映射(O/R Mapping)<br>
+</h2>
+<div style="text-align: right;"><a
+ href="Hibernate%20Jpetstore%20%D6%AE%B6%FE%20%CA%FD%BE%DD%B2%E3%C9%E8%BC%C6.html#top"><small>回
+到顶端</small></a><br>
+</div>
+<h2></h2>
+<br>
+<div style="text-align: right;"><small><br>
+</small></div>
+<br>
+<span style="color: rgb(255, 0, 0); font-weight: bold;"></span><br>
+从上面的实体关系图可以看到:<br>
+account (* .. 0..1) category, 这说明一个 Account 最多可以有一个自己最喜爱的宠物类型，也可以没有。<br>
+account (1 .. *) orders, 这说明一个 Account 可以包含多个 Order<br>
+<br>
+<h3><a name="6.1"></a>Java代码中的关系表示</h3>
+我们首先看看这两种关系在 Java 代码中的表示：<br>
+<br>
+<span style="font-weight: bold;">Account.java</span><br>
+<pre>public class Account implements java.io.Serializable ,Comparable {<br>  private Long id;<br>  private int version;<br>  ...<br><br>  // fav &lt;- <span
+ style="font-weight: bold;">fav</span>orite<br>  <span
+ style="color: rgb(255, 0, 0);">private Category favCategory;</span><br>  ...<br><br>  <span
+ style="color: rgb(255, 0, 0);">// @OneToMany(mappedBy = "user")</span><br
+ style="color: rgb(255, 0, 0);"><span style="color: rgb(255, 0, 0);">  private Set&lt;Order&gt; orders = new HashSet&lt;Order&gt;();<br><br><br><br><span
+ style="color: rgb(0, 0, 0);">  public Category getFavCategory() {</span><br
+ style="color: rgb(0, 0, 0);"><span style="color: rgb(0, 0, 0);">    return favCategory;</span><br
+ style="color: rgb(0, 0, 0);"><span style="color: rgb(0, 0, 0);">  }</span><br
+ style="color: rgb(0, 0, 0);"><span style="color: rgb(0, 0, 0);">  </span><br
+ style="color: rgb(0, 0, 0);"><span style="color: rgb(0, 0, 0);">  public void setFavCategory(Category favCategory) {</span><br
+ style="color: rgb(0, 0, 0);"><span style="color: rgb(0, 0, 0);">    this.favCategory = favCategory;</span><br
+ style="color: rgb(0, 0, 0);"><span style="color: rgb(0, 0, 0);">  }<br><br><br>  public Set getOrders() {<br>    return orders;<br>  }<br>  <br>  public void setOrders(Set&lt;Order&gt; orders) {<br>    this.orders = orders;<br>  }<br>  <br>  <span
+ style="color: rgb(255, 0, 0);">// scaffold code for collection field</span><br>  public void addOrder(Order order) {<br>    if (order == null)<br>      throw new IllegalArgumentException("Can't add a null Order.");<br>    this.getOrders().add(order);<br>  }<br></span></span></pre>
+<br>
+<br>
+<br>
+Order.java<br>
+<br>
+<pre>public class Order implements java.io.Serializable, Comparable {<br>  private Long id;<br>  private int version;<br>  <br><span
+ style="color: rgb(255, 0, 0);">  // @ManyToOne</span><br
+ style="color: rgb(255, 0, 0);"><span style="color: rgb(255, 0, 0);">  // @JoinColumn(name="userId", nullable = true, updatable = false)</span><br
+ style="color: rgb(255, 0, 0);"><span style="color: rgb(255, 0, 0);">  private Account user;</span><br>  ...<br><br><br>  public Account getUser() {<br>    return user;<br>  }<br></pre>
+<br>
+<br>
+Category.java<br>
+<pre>...</pre>
+<br>
+<br>
+<h4><a name="6.1.1"></a>单向关系</h4>
+<div style="text-align: right;"><a
+ href="Hibernate%20Jpetstore%20%D6%AE%B6%FE%20%CA%FD%BE%DD%B2%E3%C9%E8%BC%C6.html#top"><small>回
+到顶端</small></a><br>
+</div>
+在 Category.java 中没有看到我们希望看到的如下代码：<br>
+<pre><span style="text-decoration: line-through;">public class Category implements java.io.Serializable, Comparable {</span><br
+ style="text-decoration: line-through;"><span
+ style="text-decoration: line-through;">  private Long id;</span><br
+ style="text-decoration: line-through;"><span
+ style="text-decoration: line-through;">  private int version;</span><br
+ style="text-decoration: line-through;"><span
+ style="text-decoration: line-through;">  </span><span
+ style="color: rgb(255, 0, 0); text-decoration: line-through;"><br></span><br
+ style="text-decoration: line-through;"><span
+ style="text-decoration: line-through;">  </span><span
+ style="color: rgb(255, 0, 0); text-decoration: line-through;">// @OneToMany(mappedBy = "userId")</span><br
+ style="color: rgb(255, 0, 0); text-decoration: line-through;"><span
+ style="color: rgb(255, 0, 0); text-decoration: line-through;">  private Set&lt;Account &gt; users= new HashSet&lt;Account &gt;();</span><br>  ...</pre>
+这因为设计时考虑到从 Category -&gt; Account
+是没有必要的，如：当前显示一种宠物种类“狗”时，有必要显示出所有喜欢狗的用户出来吗？<br>
+既然没必要，所以我们没有将上面的代码加到Category 中去，这样叫单向关联（非双向关联，uni-bidirectional,
+association），也就是说，在Java代码中，得到一个 Category 的实例后，是无法从它“导航”(navigate) 到
+Account 的，但是反向则是可以的:<br>
+<br>
+<pre>// 不可能<br>Category cate = ...;<br><span
+ style="text-decoration: line-through; color: rgb(255, 0, 0);">Account a = cate.getUser();</span><br><br><br>// 只能<br><br>Account a = ...;<br><br><span
+ style="color: rgb(255, 0, 0);">Category cate = a.<span
+ style="color: rgb(0, 0, 0);"><span style="color: rgb(255, 0, 0);">getFavCategory();</span><br><br></span></span></pre>
+<br>
+<h4><a name="6.1.2"></a>双向关系</h4>
+<div style="text-align: right;"><a
+ href="Hibernate%20Jpetstore%20%D6%AE%B6%FE%20%CA%FD%BE%DD%B2%E3%C9%E8%BC%C6.html#top"><small>回
+到顶端</small></a><br>
+</div>
+Account 与 Order 的关系是双向的，因为一个用户进行多次购物，每次都会生成一次清单。而每个购物清单都必须得到是谁的.<br>
+<br>
+注：注释掉的 @OneToMany 与 @ManytoOne 等，是采用 Java 5 的 Annotation
+进行的处理，如果所有的映射都进行这样的处理，我们可以排除使用 hibernate hbm.xml 文件。<br>
+<br>
+<br>
+<span style="font-weight: bold;">从 Order 到 Account</span><br>
+<br>
+<pre>Order o = ...<br><br>Account a = o.getUser();<br></pre>
+<span style="font-weight: bold;">但注意到 Order.java 中并没有 setUser()
+方法，这时我们故意把 user 成员在 Order.java 做成了只读(read-only)了，为什么？</span><br
+ style="font-weight: bold;">
+<span style="font-weight: bold;">因为一个购物单生成了，是不能随便更改帐户的。如果要改，这个单子就作废。基于这个
+考虑，只有这样设计才符合现实。</span><br>
+<br>
+<br>
+<span style="font-weight: bold;">从 Account 到 Order</span><br>
+<br>
+<pre>        HashSet&lt;Order&gt; orders = getOrders();<br>        for (Iterator it = orders.iterator(); it.hasNext();) {<br>            Object elem = (Object) it.next();<br>            ...<br>        }<br><br></pre>
+<br>
+<span style="font-weight: bold; color: rgb(255, 0, 0);">这里首先指出
+Account.java 中的几个 Bug:</span><br>
+<br>
+1. 最好使用统一使用泛型 (gerneric type):<br>
+&nbsp;&nbsp; 在声明时使用了，但在 getter, setter 中没有使用，前后不统一，因此应该为:<br>
+<br>
+<pre><br>   <span style="color: rgb(255, 0, 0);"> // @OneToMany(mappedBy = "user")</span><br
+ style="color: rgb(255, 0, 0);"><span style="color: rgb(255, 0, 0);">    private Set&lt;Order&gt; orders = new HashSet&lt;Order&gt;();<br><br> <span
+ style="color: rgb(0, 0, 0);">   ...</span><br>   </span> <br><br>    public Set&lt;Order&gt; getOrders() {<br>        return orders;<br>    }<br>    <br>    public void setOrders(Set&lt;Order&gt; orders) {<br>        this.orders = orders;<br>    }<br>    <br>    // scaffold code for collection field<br>    public void addOrder(Order order) {<br>        if (order == null)<br>            throw new IllegalArgumentException("Can't add a null Order.");<br>        this.getOrders().add(order);<br>    }</pre>
+<br>
+2. 理应将 setOrders(Set&lt;Order&gt; orders) 方法作为 private
+的，或干脆去掉，因为有了脚手架方法(scaffold method)&nbsp; adOrder(Order order)，Account
+中所有对 Order 的处理应该由脚手架来处理，由它来操作这个集合类, Set&lt;Order&gt; orders,
+并维护它们之间的这种双向关系，去掉了 setOrder
+方法后，我们需要加另一个脚手架方法来实现从购物单去除一项的功能。（如果没有这项功能的话，那么在我们去超市排队付款时，当一个顾客想取消一个已扫描的
+物品时，可能就会听到收银员说，“不好意思，不能取消！”，这显然是不合理的，所以我们需要增加 removeOrder 方法，如下：<br>
+<br>
+<pre><br>   <span style="color: rgb(255, 0, 0);"> // @OneToMany(mappedBy = "user")</span><br
+ style="color: rgb(255, 0, 0);"><span style="color: rgb(255, 0, 0);">    private Set&lt;Order&gt; orders = new HashSet&lt;Order&gt;();<br><br> <span
+ style="color: rgb(0, 0, 0);">   ...</span><br>   </span> <br><br>    public Set&lt;Order&gt; getOrders() {<br>        return orders;<br>    }<br>    <br><span
+ style="color: rgb(255, 0, 0);">    //public void setOrders(Set&lt;Order&gt; orders) {</span><br
+ style="color: rgb(255, 0, 0);"><span style="color: rgb(255, 0, 0);">    //    this.orders = orders;</span><br
+ style="color: rgb(255, 0, 0);"><span style="color: rgb(255, 0, 0);">    //}</span><br>    <br>    // scaffold code for collection field<br>    public void addOrder(Order order) {<br>        if (order == null)<br>            throw new IllegalArgumentException("Can't add a null Order.");<br>        this.getOrders().add(order);<br>    }<br><br><span
+ style="color: rgb(255, 0, 0);">    public void removeOrder(Order order) {</span><br
+ style="color: rgb(255, 0, 0);"><span style="color: rgb(255, 0, 0);">        if (order == null)</span><br
+ style="color: rgb(255, 0, 0);"><span style="color: rgb(255, 0, 0);">            throw new IllegalArgumentException("Can't remove a null Order.");</span><br
+ style="color: rgb(255, 0, 0);"><span style="color: rgb(255, 0, 0);">        this.getOrders().remove(order);</span><br
+ style="color: rgb(255, 0, 0);"><span style="color: rgb(255, 0, 0);">    }</span><br></pre>
+<br>
+<br>
+<br>
+<h3><a name="6.2"></a>Hibernate 的关系表示</h3>
+<div style="text-align: right;"><a
+ href="Hibernate%20Jpetstore%20%D6%AE%B6%FE%20%CA%FD%BE%DD%B2%E3%C9%E8%BC%C6.html#top"><small>回
+到顶端</small></a><br>
+<br>
+</div>
+好，看了我们熟悉的 JAVA 代码中处理这种关系后，我们得看看如果在 Hibernate 映射中声明这种关系了。<br>
+<br>
+<h4><span style="font-weight: bold;"><a name="6.2.1"></a>account -
+category</span></h4>
+<div style="text-align: right;"><a
+ href="Hibernate%20Jpetstore%20%D6%AE%B6%FE%20%CA%FD%BE%DD%B2%E3%C9%E8%BC%C6.html#top"><small>回
+到顶端</small></a><br>
+<br>
+</div>
+<span style="font-weight: bold;">Account.hbm.xml</span><br>
+<br>
+<span style="font-weight: bold;">account (* .. 0..1) category&nbsp; (<span
+ style="color: rgb(51, 51, 255);">many-to-one</span>)</span><br>
+<pre>        &lt;many-to-one<br>            name="favCategory"<br>            column="favCategoryId"<br>            class="Category"<br>            foreign-key="FK_favCategoryId"/&gt;</pre>
+1. many-to-one 即是 *..1, 但是我们的关系其实是 *..0..1 即是 many-to-one 或 many-to-one
+/ many-to-zero<br>
+&nbsp;&nbsp; 但目前这种关系都只能通过 many-to-one 来指定，只不过，如果是严格的 many-to-one
+关系时，我们要强调一个属性 <span style="font-weight: bold;">non-null</span><br>
+<pre>        &lt;<span style="color: rgb(51, 51, 255);">many-to-one</span><br>            name="favCategory"<br>            column="favCategoryId"<br>            class="Category"<br>            foreign-key="FK_favCategoryId"<br>	    <span
+ style="color: rgb(255, 0, 0);">not-null=false</span> /&gt;</pre>
+这样就保证了非空.<br>
+<br>
+<br>
+2.外键 foreign-key, 如果不明确地写出，则 Hibernate
+会自动产生一个随机的外键。象我们这样，我们可以在产生的数据库的定义语句中可以看到（如果使用的是 Mysql, 则在 Mysql Query
+Browser 中，在hjpetstore 数据库中，选中 account | 右击 | copy SQL to
+Clipbroad，然后粘贴在上面的输入框或其它任何文本编辑器的输入地方）：<br>
+<br>
+<pre>CREATE TABLE  `hjpetstore`.`account` (<br>  `accountId` bigint(20) NOT NULL auto_increment,<br>  `version` int(11) NOT NULL,<br>  `username` varchar(80) NOT NULL,<br><br>  ...<br><br>  `favCategoryId` bigint(20) default NULL,<br><br>  ...<br><br>  PRIMARY KEY  (`accountId`),<br>  UNIQUE KEY `username` (`username`),<br>  <span
+ style="color: rgb(255, 0, 0);">KEY `FK_favCategoryId` (`favCategoryId`),</span><br
+ style="color: rgb(255, 0, 0);"><span style="color: rgb(255, 0, 0);">  CONSTRAINT `FK_favCategoryId` FOREIGN KEY (`favCategoryId`) REFERENCES `category` (`categoryId`)</span><br>) ENGINE=InnoDB DEFAULT CHARSET=gbk;</pre>
+<br>
+3. 关系是由两端组成，指定时 xxx-<span style="color: rgb(255, 0, 0);">to</span>-xxx,
+to 前面的关系端是当前映射文件对应的实体，在我们上面的例子即是 Account, to 后面的关系端是这个元素要表示的关系实体,<br>
+这个xml 元素（即 many-to-one) 的所有属性的指定都是用来约束 to&nbsp; 后面的关系端的，对于我们上面的例子是
+Category.<br>
+<ol>
+  <li>&nbsp;name="favCategory" 指的是 Account.java 中的成员</li>
+  <li>&nbsp;column 指的是这个成员映射的的数据库列</li>
+  <li>&nbsp;class 指的是 one 所代表的实体,即 Category</li>
+  <li>&nbsp;foreign-key 即用来限制这个表列的值的外键，即是 Catggory 的主键</li>
+</ol>
+<br>
+在自己手工写映射文件时，一定要清楚地知道这关系，或许你们现在只是被地接受，没有体会到自己写时的那种混乱：<br>
+<ol>
+  <li>在写 account.hbm.xml 时，为了表示这种关系是要指定 many-to-one 呢？还是 one-to-many 呢？</li>
+  <li>one 指的是那个实体，many 又是那个实体，</li>
+  <li>在写 account.hbm.xml 是，为什么这里要指定的 class 是Category</li>
+  <li>...</li>
+</ol>
+<br>
+<span style="font-weight: bold;">为了弄清这些关系，<br>
+</span>
+<ol>
+  <li>首先必须对 many-to-one, one-to-many,
+many-to-many(比较少见）有个清楚的认识，任何一种关系，把两端的实体对调，那么他们的关系就刚好要反过来，如：Account-&gt;
+category (many-to-one), category-&gt;account(one-to-many)<br>
+  </li>
+  <li>再有，在写 hbm.xml 文件时，记住，在指定关系映射时， to 前面的端是指当前这个 hbm.xml 文件代表的实体， to
+后面的端是对关系的另一端，而这个元素中的任何属性都用来标识并约束关系的另一端的。</li>
+</ol>
+<br>
+<br>
+<span style="font-weight: bold;">Category.hbm.xml<br>
+<br>
+</span><br>
+<span style="font-weight: bold;"></span><span style="font-weight: bold;">category</span><span
+ style="font-weight: bold;"> (0..1 .. *) </span><span
+ style="font-weight: bold;">
+account (<span style="color: rgb(51, 51, 255);">one-to-many</span>)</span><span
+ style="font-weight: bold;">, </span><span style="font-weight: bold;">刚
+好是
+account (* .. 0..1) category 的反向</span><br>
+<span style="font-weight: bold;"><br>
+</span><br>
+同样，因为是单向关系，所以我们<span style="font-weight: bold;">没有</span>在其中看到如下的代码 <br>
+<br>
+<pre style="text-decoration: line-through;">        &lt;!-- Mapping for Account association. --&gt;<br>        &lt;set name="users"<br>             inverse="true"<br>             cascade="save-update"<br>             access="field"&gt;<br>            &lt;key column="userId" /&gt;<br>            &lt;<span
+ style="color: rgb(51, 51, 255);">one-to-many</span> class="Account"/&gt;<br>        &lt;/set&gt;</pre>
+从 account - &gt; category&nbsp; 为 many-to-one, 那么反过来就是 one-to-many<br>
+<br>
+<br>
+<h4><a name="6.2.2"></a>account - order</h4>
+<div style="text-align: right;"><a
+ href="Hibernate%20Jpetstore%20%D6%AE%B6%FE%20%CA%FD%BE%DD%B2%E3%C9%E8%BC%C6.html#top"><small>回
+到顶端</small></a><br>
+<br>
+</div>
+生成的 SQL DDL:<br>
+<br>
+<span style="font-weight: bold;"></span>
+<pre><span style="font-weight: bold;">CREATE TABLE&nbsp; `hjpetstore`.`account` (<br><br>&nbsp; <span
+ style="color: rgb(255, 0, 0);">`accountId`</span> bigint(20) NOT NULL auto_increment,<br>&nbsp; `version` int(11) NOT NULL,<br><br>   ...<br><br>&nbsp; `favCategoryId` bigint(20) default NULL,<br><br>   ...<br><br>&nbsp; <span
+ style="color: rgb(255, 0, 0);">PRIMARY KEY&nbsp; (`accountId`),</span><br>&nbsp; UNIQUE KEY `username` (`username`),<br>&nbsp; KEY `FK_favCategoryId` (`favCategoryId`),<br>&nbsp; CONSTRAINT `FK_favCategoryId` FOREIGN KEY (`favCategoryId`) REFERENCES `category` (`categoryId`)<br>) ENGINE=InnoDB DEFAULT CHARSET=gbk;<br><br><br><br>CREATE TABLE&nbsp; `hjpetstore`.`orders` (<br><br>&nbsp; <span
+ style="color: rgb(255, 0, 0);">`orderId`</span> bigint(20) NOT NULL auto_increment,<br>&nbsp; `version` int(11) NOT NULL,<br>&nbsp; `userId` bigint(20) NOT NULL,<br><br>   ...<br><br>&nbsp; <span
+ style="color: rgb(255, 0, 0);">PRIMARY KEY&nbsp; (`orderId`),</span><br>&nbsp; <span
+ style="color: rgb(255, 0, 0);">KEY `FK8D444F05BC594D77` (`userId`),</span><br
+ style="color: rgb(255, 0, 0);"><span style="color: rgb(255, 0, 0);">&nbsp; CONSTRAINT `FK8D444F05BC594D77` FOREIGN KEY (`userId`) REFERENCES `account` (`accountId`)</span><br>) ENGINE=InnoDB DEFAULT CHARSET=gbk;</span></pre>
+<br>
+<span style="font-weight: bold;"><br>
+Account.hbm.xml<br>
+<br>
+</span>
+<br>
+<span style="font-weight: bold;">account (1 .. *) order (</span><span
+ style="color: rgb(51, 51, 255); font-weight: bold;">one-to-many</span><span
+ style="font-weight: bold;">)</span><br>
+<pre>        &lt;!-- Mapping for Order association. --&gt;<br>        &lt;set name="orders"<br>             inverse="true"<br>             cascade="save-update"<br>             access="field"&gt;<br>            &lt;key column="userId" /&gt;<br>            &lt;<span
+ style="color: rgb(51, 51, 255);">one-to-many</span> class="Order"/&gt;<br>        &lt;/set&gt;<br></pre>
+1. set 即是 代表集合类 Set<br>
+2. name="orders" 即是 Account.java 的成员为 orders<br>
+3. access="field" 即通过类的成员来访问 orders, 不管其是否为 public 与否；而不是通过
+getter/setter 来访问，如果是后者的话，则为 access="property"，但此时必须定义 getter 和 setter,
+但我们不是把 setOrders() 注释掉了吗？所以只能是 field 了.<br>
+4. &lt;key column="userId" /&gt;&nbsp; 这个是用来定义这种外键关系的名字, 所以我们可以在表 Order
+产生的 DDL 中可以看到 <span style="color: rgb(255, 0, 0);">foreign
+key('userId')，<span style="color: rgb(0, 0, 0);">Order的这个外键引用的正是Accoung
+的主键, accountId:</span> references 'accoung' ('accountId'); <span
+ style="color: rgb(0, 0, 0);">但请注意，我们是在 Account.xml 定义的这些关系，但是在关系的 many
+端，我们的例子中(Order)，生成的表中才会出现这种约束关系，这与我们写 SQL 创建表是一样的：<br>
+<span style="font-weight: bold;">&nbsp;&nbsp; 外键约束关系只会出现在关系的 many
+端，因为只有关系的多端才需要这个外键来指定这个关系的单端是谁。Order1 需要知道这是order 是属于谁，Order2 也是需要知道这个
+order 是属于谁；但是 Account 要么知道他所有的&nbsp; order, 要么知道他根本还没有 order, 并不可能用
+account 来限定表 order 中的一行；所以这就是为什么外键约束总是出现在 many 端的原因吧。</span><br>
+&nbsp;&nbsp; 但在 java 代码中这个外键关系刚刚相反，它总是以 集合类的方式出现在单(one) 端中，比如 orders
+存在于 Account.java，所以这种映射也是出现在单端的 hbm.xml 文件中，而在多端中往往只是普通的一个实体引用：<br>
+</span></span>
+<pre>  // @ManyToOne<br>  // @JoinColumn(name="userId", nullable = true, updatable = false)<br>  private Account user;</pre>
+所以一定注意。<br>
+<br>
+5. &lt;one-to-many class="Order" /&gt; 这个应该是比较明显了，声明多端，也就是集合类中元素的类型<br>
+<span style="color: rgb(255, 0, 0);"><span style="color: rgb(0, 0, 0);"></span><br>
+</span>6. inverse="true" <br>
+7. cascade="save-update"<br>
+<br>
+上面两个属性，是值得好好理解的，因为这个两个属性，对于熟悉SQL及ERD的人来说也并不是容易理解的，因为这个两个属性或多或少是必于
+Hibernate或所有 O/R Mapping 框架特有的东西。如果需要深入了解的话，看看《Hibernate In Action》
+3.7.4 Making the association bidirectional 是有好处的。不过我这里也想好好讲讲，毕竟这个太重要了。<br>
+<br>
+为了更好地理解这两概念，现在我们先假设 Order 的成员 user 不再是只读，即存在 setUser 方法，如下：<br>
+<br>
+<pre>  public void setUser(Account account) {<br>      this.user = account;<br>  }</pre>
+因为我们这个例子是个特例，read-write 的成员还是占大多数的。<br>
+<br>
+<br>
+现在，如果在客户端有如下代码：<br>
+<pre>Order order = ...;<br>Account account = ...;<br><br><span
+ style="font-weight: bold;">order.setUser(account);</span><br
+ style="font-weight: bold;"><span style="font-weight: bold;">account.addOrder(order);</span><br><br></pre>
+引用自 Hibernate In Action:<br>
+<span style="font-style: italic;">This code is fine, but in this
+situation, Hibernate detects two different changes to</span><br
+ style="font-style: italic;">
+<span style="font-style: italic;">the in-memory persistent instances.
+From the point of view of the database, just</span><br
+ style="font-style: italic;">
+<span style="font-style: italic;">one value must be updated to reflect
+these changes: the UserId(原文为ITEM_ID) column of the</span><br
+ style="font-style: italic;">
+<span style="font-style: italic;">Order(原文为</span><span
+ style="font-style: italic;">BID) table. Hibernate doesn’t
+transparently detect the fact that the two changes refer to the</span><br
+ style="font-style: italic;">
+<span style="font-style: italic;">same database column, since at this
+point we’ve done nothing to indicate that this is a bidirectional</span><br
+ style="font-style: italic;">
+<span style="font-style: italic;">association.</span><br
+ style="font-style: italic;">
+<span style="font-style: italic;">We need one more thing in our
+association mapping to tell Hibernate to treat</span><br
+ style="font-style: italic;">
+<span style="font-style: italic;">this as a bidirectional association:
+The inverse attribute tells Hibernate that the</span><br
+ style="font-style: italic;">
+<span style="font-style: italic;">collection is a mirror image of the
+many-to-one association on the other side:<br>
+<br>
+...<br>
+<br>
+Without the inverse attribute, Hibernate would try to execute two
+different SQL<br>
+statements, both updating the same foreign key column, when we
+manipulate the<br>
+association between the two instances. By specifying inverse="true", we
+explicitly<br>
+tell Hibernate which end of the association it should synchronize with
+the database.<br>
+In this example, we tell Hibernate that it should propagate changes made<br>
+at the Order</span><span style="font-style: italic;">(原文为</span><span
+ style="font-style: italic;">Bid)</span><span
+ style="font-style: italic;"> end of the association to the database,
+ignoring changes made only to<br>
+the orders(原文为bids) collection. Thus if we only call
+account.addOrder(order) (原文为 item.getBids().add(bid)), no changes<br>
+will be made persistent. This is consistent with the behavior in Java
+without<br>
+Hibernate: If an association is bidirectional, you have to create the
+link on two<br>
+sides, not just one.<br>
+</span><br>
+<br>
+<span style="font-style: italic;"></span><br>
+这两行代码可以正常编译，但是在这种情形下，Hibernate 将发现这里存在两个改变试图改变内存中的持久化对象（<span
+ style="font-weight: bold;">为什么叫内存中，而不是数据库中呢？因为Hibernate
+会把所有它碰到过的实体对象缓存在一级 Cache ，即所谓的 session
+cache中，注意，稍后我们在配置文件中配置的是二级cache，它是在 SessionFactory 级的</span>）。但从数据库方面来看，
+这只需要一个改变即可以反映这种改变（这种改变指的是建立起这种关系，将这两个新建的实体关联起来，即指定 Order 表中的 UserId
+列，即外键）。Hibernate 并不明确地知道这一事实：这这两个改变都是指向同一个数据库表的列，因为在此时我们还没有指示这种关系是一个<span
+ style="font-weight: bold;">双向关系</span>。<br>
+我们需要在关联关系映射中进一步告诉 Hinbernate 这两个实体的这种关系对待为双向关系：<span
+ style="color: rgb(255, 0, 0); font-weight: bold;">inverse</span> 属性告诉
+Hibernate 这个集合（即单端中的集合成员，在我们的例子中即为 Account 中的 orders)是另一端的 many-to-one
+关系的镜像。(请接下一段翻译)（另一端的 many-to-one 关系即是下面的映射 <br>
+<br>
+<br>
+<span style="font-weight: bold;">order (* .. 1) account (<span
+ style="color: rgb(51, 51, 255);">many-to-one</span>)</span><br>
+<br>
+<pre>    &lt;<span style="color: rgb(51, 51, 255);">many-to-one</span> name="user" <br>                 column="userId"<br>                 not-null="true"<br>                 update="false"<br>                 access="field" /&gt;</pre>
+我们不重复上面已经介绍过或一看就能理解的属性，如 many-to-one, access 等。<br>
+1. not-null="true" ，即会在SQL中产生：<br>
+<pre><span style="font-weight: bold;">`userId` bigint(20) <span
+ style="color: rgb(255, 0, 0);">NOT NULL</span>,</span></pre>
+2. update="false" 即是这个属性是 <span style="font-weight: bold;">read-only</span>
+的 （我们又回到了将 setUser() 方法去掉的情形，因为我们上面的假设只是为了更好地描述问题，因此只要是双向关系就必须在<span
+ style="font-weight: bold;">集合端</span>指示地指定 inverse="true'））<br>
+<br>
+<br>
+(上接)<br>
+...<br>
+<br>
+没有 inverse 属性，在我们操纵两个实体间的关系时，Hibernate 将会试图执行两个不同的SQL语句来更新同一个外键列。通过指定
+inverse="true", 我们明确地告诉 Hibernate 关系的哪端应该将改变同步到数据库中去（即将改变通过 SQL
+语句写入到数据库中去），在这个例子中，我告诉 Hibernate 应该将发生在 Order
+端的改变传播到数据库中去，而忽略仅仅发生在单端中的集合类成员 orders 的这端改变（即单端中的集合类 ）。因此，如果我们仅仅通过调用
+account.addOrder(order),
+将不会有任何作用（即不会将这种改变存到数据库中去，也就是说，这种改变在程序退出后将消失。<span
+ style="color: rgb(255, 0, 0);">很危险是吗，别着急，请看下一段！</span>）。这种行为是和普通 java
+的行为一致的，如果关系是一个双向关系时，我们不得不在关系的两端创建出一个链接，而不是一端。<br>
+<br style="font-weight: bold;">
+<span style="font-weight: bold;">正如上段所说，为了达到不因为更改同一个数据库列而执行两条SQL语句，我们付出了
+很大代价，改变发生在单端集合成员上的改变如果不明确地调用 session.save(...); 的话，将有可能丢失数据</span>。<br>
+<br style="font-weight: bold;">
+<span style="font-weight: bold;">难道 Hibernate 号称它为透明化持久（transitive
+persistence) 是徒有虚名的？</span><br style="font-weight: bold;">
+<span style="font-weight: bold;">不！这正是 cascade 的作用。</span><br>
+<br>
+我们上现在的例子中通过指定:<br>
+<pre>cascade="save-update"</pre>
+详情请见 Hibernate In Action:<br>
+4.3.2 Cascading persistence with Hibernate<br>
+<br>
+You can map entity associations in metadata with the following
+attributes:<br>
+<ul>
+  <li><span style="font-weight: bold;">cascade="none"</span>, the
+default, tells Hibernate to ignore the association.</li>
+  <li><span style="font-weight: bold;">cascade="save-update"</span>
+tells Hibernate to navigate the association when the transaction is
+committed and when an object is passed to save() or update() and save
+newly instantiated transient instances and persist changes to detached
+instances.</li>
+  <li><span style="font-weight: bold;">cascade="delete"</span> tells
+Hibernate to navigate the association and delete persistentinstances
+when an object is passed to delete().</li>
+  <li><span style="font-weight: bold;">cascade="all" </span>means to
+cascade both save-update and delete, as well ascalls to evict and lock.</li>
+  <li><span style="font-weight: bold;">cascade="all-delete-orphan"</span>
+means the same as cascade="all" but, in addition,Hibernate deletes any
+persistent entity instance that has been removed(dereferenced) from the
+association (for example, from a collection).</li>
+  <li><span style="font-weight: bold;">cascade="delete-orphan"</span>
+Hibernate will delete any persistent entityinstance that has been
+removed (dereferenced) from the association (forexample, from a
+collection).</li>
+</ul>
+<br>
+<span style="font-weight: bold;">cascade="save-update" </span>告诉
+Hibernate，当 session.save() 或 session.update()
+后，事务操作被提交(committed)之后中，它将导航(natigate)到关系的另一端，将保存新创建的实体实例和对
+detached(这个词的翻译需要一段话来解释，简单地讲，是因为 Hibernate
+会一次性把好多对象从数据库中取出，然后断开数据库连接，这时，这些取出的对象就处在 detached
+状态，而后，对这些对象的改变会在适当的时候通过重新获得数据库连接保存到数据库当中去）作出的改变。<br>
+<br>
+至于其它的用到的应该不多特别是 all, all-delete-orphan, delete-orphan, 为什么叫 orphan,
+举例来说，如果一个用户销户了，从Account表中删除了，而数据库Order表中还保存了他的购物清单，这时这些 order
+数据就叫做孤儿，因为此时从 Account 永远访问不到 Order 了。<br>
+但是现实当时，除非特别指出，一般还是让这些孤儿保留比较好，省得一下子所以的记录全没了。所以一般设置为 sava-upate 就可以了。<br>
+<span style="font-weight: bold;"><br>
+</span><br>
+<span style="color: rgb(255, 0, 0); font-weight: bold;">注意：</span><br>
+我映射 POJO类 Order 时走过弯路，因为 order 是SQL语言的关键字，所以总是出错，最终我看错误信息是有关 (<span
+ style="font-weight: bold;">key word</span>) ，所以我把表的名字加上了一个 's'，如：<br>
+<br>
+<pre>  &lt;!-- Order 为数据库关键字，所以表名不能为 Order.<br>         这可是花了几小时的代价得出的经验<br>  --&gt;<br>  &lt;class name="Order" table="Orders" lazy="true"&gt;</pre>
+<br>
+<br>
+<h4><a name="6.3"></a>主键映射</h4>
+<div style="text-align: right;"><a
+ href="Hibernate%20Jpetstore%20%D6%AE%B6%FE%20%CA%FD%BE%DD%B2%E3%C9%E8%BC%C6.html#top"><small>回
+到顶端</small></a><br>
+<br>
+</div>
+Account.hbm.xml 中<br>
+<br>
+<pre>        &lt;id name="id" type="long" column="accountId" <span
+ style="font-weight: bold;">unsaved-value="null"</span> access="field"&gt;<br>            &lt;generator class="native" /&gt;<br>        &lt;/id&gt;<br><br>        &lt;!-- A versioned entity. --&gt;<br>        &lt;version name="version" access="org.hibernate.property.DirectPropertyAccessor" /&gt;<br></pre>
+Order.hbm.xml 中<br>
+<pre>  &lt;id name="id" type="long" column="orderId" unsaved-value="null" access="field"&gt;<br>      &lt;generator class="native" /&gt;<br>  &lt;/id&gt;<br><br>  &lt;version name="version" access="org.hibernate.property.DirectPropertyAccessor" /&gt;<br><br></pre>
+<br>
+1. &lt;id&gt; 是专用元素，用来指定主键<br>
+2. &lt;version&gt; 是Hibernate用来作优化处理的, 如果熟悉Hibernate 的 API 的话，会知道它有
+session.save(), session.update(), session().saveOrUpdate();而方法
+saveOrUpdate() 是方便调用端不用管这个对象是新建的还是前头已创建后这次只进行了更新；这个决定 Hibernate
+应该比我们更清楚，因此交给它去做吧。但这个更清楚是需有个前提的，这个前提即是 &lt;version&gt; 它联合 &lt;id 元素的
+unsaved-value="null" 属性一起用来区分一个实体对象是新创建的还是已经持久化过后进行更新的。<br>
+<br>
+3. &lt;generator&gt; 元素是指定这个主键产生的机制：<br>
+<br>
+<span style="font-weight: bold;">Hibernate 3.x manual</span> 中 5.1.4.1
+Generator，(因为 Hibernate in action
+比较老，它没有明确地列出后续版本支持的机制，所以我们这里引用这个文档)有所有值的描述<br>
+<br>
+我们之所以指定为 native，是因为我们这个演示项目建立在没有现在数据库的基础上，所以我们完全可以选择最好的机制产生主键。native
+会使用你指定的数据库方言来决定使用最适合这种数据库的机制。如：<br>
+oracle 将会使用我们熟悉的 Sequence(Hibernate 会自动生成一个 hibernate_sequence,而所有被指定为
+native 的主键将从这个唯一的序列发生器中取出下一值来作为 id 的主键值），<br>
+其它几种常用的数据库 Mysql，DB2 和 MS SQL Server 将会使用 identity<br>
+<br>
+但是正如我前面提到的，项目建立在没有遗留数据的情况是罕见的！大多数项目不得不面对一大堆没有很好建立起约束关系，而且使用“自然主键”
+(natural primary key)作为主键，这与 Hibernate 的设计理念背道而驰。在Hibernate
+看来，主键只是用来唯一地标识这条数据行的，除些之外，不能再有其它含义，但现实中，往往出现
+SID(保险号，身份证号）等具有相应含义的列来作为数据库的主键，关于自然主键请参阅：<br>
+<h4 style="font-weight: normal;" class="title">3.4.3 Choosing primary
+keys</h4>
+<h4 style="font-weight: normal;" class="title">8.3.1 Legacy schemas and
+composite keys<br>
+</h4>
+<br>
+我们说了，如果指定为 native 的机制的话，在初始化一个实体对象时，你根本不需要管这个 id 属性，也就是说你看到带有参数 id
+的构造函数，也不可能有setId(long id) 方法，因为hibernate 会生成且只生成一个序列发生器（对 oracle)
+，且用其中的值来应对所有的数据表，如：<br>
+<br>
+create sequence hibernate_sequence <span style="font-weight: bold;">start
+with 1</span>;<br>
+<br>
+初始化了第一个 Order,&nbsp;&nbsp; 则 orderId&nbsp;&nbsp; = 1;<br>
+初始化了第二个 Order,&nbsp;&nbsp; 则 orderId&nbsp;&nbsp; = 2;<br>
+初始化了第一个 Account, 则 accountId = 3;<br>
+初始化了第二个 Account, 则 accountId = 4;<br>
+初始化了第三个 Order，　则 orderId&nbsp;&nbsp; = 5;<br>
+<br>
+这里存在几个问题首先每个表的主键不再是连续的，再值或多或少依赖于 start with 的值。<br>
+<br>
+在现实中，自然主键往往一般是连续的，且其长度都是受限的，比如身份证为 15 或　18 位。所以，对于已存在的数据库，只能使用机制 <span
+ style="font-weight: bold;">assign:<br>
+<br>
+</span>
+<dl>
+  <dt style="font-weight: bold;"><span class="term"><tt class="literal">assigned</tt></span></dt>
+  <dd>
+    <p> lets the application to assign an identifier to the object
+before <tt class="literal">save()</tt> is called. This is the default
+strategy if no <tt class="literal">&lt;generator&gt;</tt> element is
+specified. </p>
+  </dd>
+</dl>
+这就是说，数据库主键是通过构造函数传进来的，然后这个实体通过调用 <span style="font-family: monospace;">session.save(new
+abcEntity(abcId, ...)); 进行持久化的。此时， Hibernate
+将责任交给了你，程序员来做这件事，而且你也正想做这件事。不是吗？如果不这样你怎么来保证你的主键与数据期待的条件相符？。<br>
+或者，如果你的实体对象只提供了默认构造函数，那么此时你必须提供一个 setId(...) 的方法，来给实体对象设置主键。<br>
+</span><br>
+<br>
+<h4><a name="6.4"></a>其他映射</h4>
+<div style="text-align: right;"><a
+ href="Hibernate%20Jpetstore%20%D6%AE%B6%FE%20%CA%FD%BE%DD%B2%E3%C9%E8%BC%C6.html#top"><small>回
+到顶端</small></a><br>
+<br>
+</div>
+至于其它的与 java
+代码中的成员一一对应的映射，我想理解了上面的内容的话，应该不会有太多困难。所以请你们打开IDE一一对应着看，如果有不明白的就及时问问，我将乐意解
+答。<br>
+<br>
+至于剩下的高级主题（我现在发现这篇文章的内容够多了！这也证实了我当初为什么花了两周才把Hibernate
+搞定的原因吧。因为这的确不容易！），慢慢来，在现实应用中不需要用，就不用，因为你完全可以避免的。我想除非你身边有高手在，否则没人会指出你的设计缺
+陷的：<br>
+<br>
+<ul>
+  <li>组件关系，如Account中对 userAddress 的映射：&lt;component name="userAddr"
+...&gt;</li>
+  <li>实体生命周期的管理：父子关系，这也是UML中的强互合关系（如：人与胳膊的关系，人是需要负责胳膊的生命周期管理的，即人不存在了，胳膊也
+就不复存在了。）</li>
+  <li>映射类的继承关系</li>
+  <li>多对多关系</li>
+</ul>
+<br>
+<br>
+<h4><a name="6.5"></a>二级缓存映射</h4>
+<div style="text-align: right;"><a
+ href="Hibernate%20Jpetstore%20%D6%AE%B6%FE%20%CA%FD%BE%DD%B2%E3%C9%E8%BC%C6.html#top"><small>回
+到顶端</small></a><br>
+<br>
+</div>
+这一主题是我目前还未深入的，详情请见 <span style="font-weight: bold;">Hibernate 3.x
+manual</span>　19.2. The Second Level Cache<br>
+<br>
+最主要的是在映射中加上<br>
+<br>
+<pre>&lt;cache usage="read-write"/&gt;</pre>
+或<br>
+<pre>&lt;cache usage="read-only/&gt;</pre>
+<br>
+或其它更高级的设置。<br>
+<br>
+read-only, 就是说实体对象被从数据库中取出后，不再会发生改变时，指定这个属性可以获得更好的性能。<br>
+但如果需要改变时，你别无选择，必须指定 read-write.<br>
+<br>
+<span style="font-weight: bold;">象这个项目中的与库存有关关的实体就是 read-only
+的，因为我们这个例子并没有包括后的库存管理功能，如果包含了的话，则Category/Inverntory/Product 等等可能也不能指定为
+read-only 了，因为它们也需要在管理后台中进行更新的。<br>
+<br>
+<br>
+<br>
+</span>
+<h2><span style="font-weight: bold;"><a name="6.6"></a>Hibernate 配置文件</span></h2>
+<div style="text-align: right;"><a
+ href="Hibernate%20Jpetstore%20%D6%AE%B6%FE%20%CA%FD%BE%DD%B2%E3%C9%E8%BC%C6.html#top"><small>回
+到顶端</small></a><br>
+</div>
+<h3><span style="font-weight: bold;"></span></h3>
+<span style="font-weight: bold;"><br>
+</span>Hibernate 的全局配置一般会在 Hibernate.cfg.xml 文件中，但我们这个项目使用了&nbsp;
+Spring, 所以它以Spring 的方式集成进来了，这就是 WEB_INF 下面的几个 dataAccessContext-
+开头的几个文件的内容，具体用哪个会在部署系列中详细介绍的。目前是用哪个，看 web.xml 中的定义：<br>
+<br>
+<pre>  &lt;!--<br>    - Location of the XML file that defines the root application context.<br>    - Applied by ContextLoaderServlet.<br>    --&gt;<br>  &lt;context-param&gt;<br>    &lt;param-name&gt;contextConfigLocation&lt;/param-name&gt;<br>    &lt;!-- local datasource --&gt;<br>    &lt;param-value&gt;<br>      <span
+ style="color: rgb(255, 0, 0);">/WEB-INF/dataAccessContext-hibernate.xml /WEB-INF/applicationContext.xml</span><br>    &lt;/param-value&gt;<br>    <br>    <br>    &lt;!-- jndi datasource and JTA (for a transactional JNDI DataSource) <br>    &lt;param-value&gt;<br>      /WEB-INF/dataAccessContext-hibernate-jndi.xml /WEB-INF/applicationContext.xml<br>    &lt;/param-value&gt;<br>    --&gt;<br>  &lt;/context-param&gt;</pre>
+<br>
+正如我单独列出一小结，我本想详细介绍一下这个文件的内容，但看了一下，如果仔细读了系列一的话，其实大部分内容已经提及过了，且　
+dataAccessContext-hibernate.xml
+文件的内容还算轻松。你们好好看看，看有问题否？（我希望你们能给我一些回馈，不管看得怎样。）<br>
+<br>
+其实这个文件中只有以下几项内容，且其内容是一项项嵌套的：<br>
+<ol>
+  <li>dataSource 数据源的指定，除非你们公司有更好的实现，一般可能就会是 C3P0 了。它被 sessionFactory使用了</li>
+  <li>sessionFactory, 关键是它包含的
+&lt;property&gt;子元素，一一指定吧。其中指定了二级缓存的的提供者:hibernate.cache.provider_class。
+它被 transactionManager 和所有DAO使用了</li>
+  <li>transactionManager 事务管理器，管理所有从 &lt;property&gt; 中指定的
+sessionFactory 获得的 session 操作的事务</li>
+  <li>剩下就是所有 DAO 的配置了</li>
+</ol>
+<br>
+<h3><a name="6.7"></a>Ehcache</h3>
+<div style="text-align: right;"><a
+ href="Hibernate%20Jpetstore%20%D6%AE%B6%FE%20%CA%FD%BE%DD%B2%E3%C9%E8%BC%C6.html#top"><small>回
+到顶端</small></a><br>
+</div>
+<br>
+象我们的第二项中指定了二级缓存的提供者为:<br>
+<br>
+<pre>        &lt;prop key="hibernate.cache.use_query_cache"&gt;true&lt;/prop&gt;<br>        &lt;prop key="hibernate.cache.provider_class"&gt;org.hibernate.cache.EhCacheProvider&lt;/prop&gt;</pre>
+那么默认情况下 EhCacheProvider 将会在 CLASSPATH 中寻找它的配置文件 ehcache.xml,
+一般情况下，它会放在源文件的包的根目录下，这就是在 netbeans 显示在Projects 中 Source Packages 下的
+&lt;default package&gt; 中的 ehcache.xml 文件。但如果 Ehcahe
+没有在类路径中找到配置文件，那么它会启动它的故障防护功能，会使用默认的配置ehcache-failsafe.xml，展开库（Projects
+中　hibernateJpetstore | libraries | encache-1.2.3.jar | 无名包 |
+ehcache-failsafe.xml).<br>
+<br>
+这个配置文件中的属性有：<br>
+<br>
+<pre>&lt;ehcache&gt;<br>  <br>  &lt;!-- Sets the path to the directory where cache .data files are created.<br><br>         If the path is a Java System Property it is replaced by<br>         its value in the running VM.<br><br>         The following properties are translated:<br>         user.home - User's home directory<br>         user.dir - User's current working directory<br>         java.io.tmpdir - Default temp file path --&gt;<br>  &lt;!--  <br>   <span
+ style="color: rgb(255, 0, 0);">指定缓存文件存放的目录</span><br>   在运行的服务器的 tmp 目录下，如：<br>  .netbeans\5.5dev\apache-tomcat-5.5.17_base\temp\ehcache<br>  --&gt;  <br>      <br>  &lt;diskStore path="java.io.tmpdir/ehcache"/&gt;<br>  <br>  <br>  &lt;!--Default Cache configuration. These will applied to caches programmatically created through<br>        the CacheManager.<br><br>        The following attributes are required: <span
+ style="color: rgb(255, 0, 0);">(必须同的选项)</span><br><br>        maxElementsInMemory            - Sets the maximum number of objects that will be created in memory <span
+ style="color: rgb(255, 0, 0);">(最多多少个对象将被缓存在内存中)</span><br>        eternal                        - Sets whether elements are eternal. If eternal,  timeouts are ignored and the<br>                                         element is never expired.<span
+ style="color: rgb(255, 0, 0);"> (是否外部化，如果是，则下面这些超时功能将被忽略，并胜元素将永不过期)</span><br>        overflowToDisk                 - Sets whether elements can overflow to disk when the in-memory cache<br>                                         has reached the maxInMemory limit. <span
+ style="color: rgb(255, 0, 0);">(是否将溢流的元素，即超过第一项配置的最大个数时，是否将元素写到硬盘中去？)</span><br><br>        The following attributes are optional: <span
+ style="color: rgb(255, 0, 0);">(可选的选项)</span><br>        timeToIdleSeconds              - Sets the time to idle for an element before it expires.<br>                                         i.e. The maximum amount of time between accesses before an element expires<br>                                         Is only used if the element is not eternal.<br>                                         Optional attribute. A value of 0 means that an Element can idle for infinity.<br>                                         The default value is 0.<br>　　　　　　　　　　　　　　　　　　　　<span
+ style="color: rgb(255, 0, 0);">(元素可以呆在内存中的最长的空闲时间，即两次访问之间的间隔，如果超过这个数，元素将过期，即从缓存中移走，</span><br
+ style="color: rgb(255, 0, 0);"><span style="color: rgb(255, 0, 0);">　　　　　　　　　　　　　　　　　　　　下次再访问这个元素时，需从持久化存储中取出。仅对非外部化元素有效。默认为0，表示元素永不过期)</span><br><br>        timeToLiveSeconds              - Sets the time to live for an element before it expires.<br>                                         i.e. The maximum time between creation time and when an element expires.<br>                                         Is only used if the element is not eternal.<br>                                         Optional attribute. A value of 0 means that and Element can live for infinity.<br>                                         The default value is 0.<span
+ style="color: rgb(255, 0, 0);">(元素在创建后多少秒后将被销毁, 默认为0，表示永远不销毁）</span><br>        diskPersistent                 - Whether the disk store persists between restarts of the Virtual Machine.<br>                                         The default value is false. <span
+ style="color: rgb(255, 0, 0);">(在JVM重启时，是否将内存中的元素写到硬盘。默认为 false)</span><br>        diskExpiryThreadIntervalSeconds- The number of seconds between runs of the disk expiry thread. The default value<br>                                         is 120 seconds. <span
+ style="color: rgb(255, 0, 0);">(</span><span
+ style="font-family: Arial; color: rgb(255, 0, 0);" lang="EN-US">设定缓存在硬盘上的生存时间</span><span
+ style="color: rgb(255, 0, 0);">)</span><br>        --&gt;<br><br>  &lt;defaultCache<br>    maxElementsInMemory="10000"<br>    eternal="false"<br>    overflowToDisk="true"<br>    timeToIdleSeconds="120"<br>    timeToLiveSeconds="120"<br>    diskPersistent="false"<br>    diskExpiryThreadIntervalSeconds="120"/&gt;<br>&lt;/ehcache&gt;  </pre>
+<br>
+上面这个文件指定的是默认配置，但如果要对某一实体进行特定的配置时，只需要追加一个元素，取名为该实体的名称即可。<br>
+&nbsp;&nbsp;&nbsp; &lt;cache name="<span style="font-weight: bold;">org.springframework.samples.jpetstore.domain.Order</span>"
+<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+maxElementsInMemory="10000"<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+eternal="false" timeToIdleSeconds="300" timeToLiveSeconds="600"<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+overflowToDisk="true" /&gt; <br>
+<br>
+<br>
+<h3><a name="7"></a>总结</h3>
+<div style="text-align: right;"><a
+ href="Hibernate%20Jpetstore%20%D6%AE%B6%FE%20%CA%FD%BE%DD%B2%E3%C9%E8%BC%C6.html#top"><small>回
+到顶端</small></a><br>
+<br>
+</div>
+是的，要短时间内完全理解 O/R mapping
+是不容易的。但理解那怕一部分都有可能对今后的项目的ER（实体关系）有更清楚的认识，并设计出更加合理的数据层。<br>
+其实，这些不光对 Hibernate 有用，对 EJB 实体 Bean, 对普通的JDBC的数据库建模也同样有效的。<br>
+<br>
+理解了最困难的部分，后续的系列将会简单多了。下一系列，控制层。<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+</body>
+</html>

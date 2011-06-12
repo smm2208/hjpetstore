@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE hibernate-mapping SYSTEM "http://hibernate.sourceforge.net/hibernate-mapping-3.0.dtd">
+<!--
+    Document   : Product.hbm.xml
+    Created on : 2006年10月2日, 下午4:24
+    Author     : pprun
+    Description:
+        Purpose of the document follows.
+-->
+
+<hibernate-mapping package="org.springframework.samples.jpetstore.domain">
+  <class name="Product" table="Product" lazy="true">
+    <cache usage="read-write"/>
+    <id name="id" type="long" column="productId" unsaved-value="null" access="field">
+      <generator class="native" />
+    </id>
+    
+    <!-- A versioned entity. -->
+    <version name="version" access="org.hibernate.property.DirectPropertyAccessor" />
+    
+    <property name="productNumber" type="string">
+      <column name="productNumber" not-null="true" length="10" unique="true" />
+    </property>
+    
+    <!-- 
+    为单端不能设置cascade="all,delete-orphan", delete-orphan 语义不存于单端 
+    此处如使用 fetch="join" 
+    对于解决 org.hibernate.LazyInitializationException
+    取不到作用. 该异常是因为 session 已经关闭了，对应关联的对象也许取出了，
+    也许没取出，对结果没影响（对于取出了情况需要将查询结果以 List 方式返回)来解决
+    其它实体映射的 many-to-one 同.
+    只有对 set 时使用，时也同此.
+    -->
+    <many-to-one name="category" 
+                 class="Category"
+                 column="categoryId"
+                 update="true"
+                 not-null="true"
+                 access="field" />
+    
+    <property name="productName" type="string" length="80" />
+    
+    <property name="productDesc" type="string" length="255" />
+    
+    <!-- 
+    Mapping for Item association. 
+    cascade="all-delete-orphan"
+    -->
+    <set name="items"
+         inverse="true"
+         cascade="save-update"
+         access="field">
+      <key column="productId"/>
+      <one-to-many class="Item"/>
+      <!--
+        <loader query-ref="loadItemsForProduct"/>
+        -->
+    </set>
+  </class>
+</hibernate-mapping>

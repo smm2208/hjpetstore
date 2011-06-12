@@ -1,0 +1,539 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html>
+<head>
+  <meta content="text/html; charset=GBK" http-equiv="content-type">
+  <title>Hibernate Jpetstore 之一: 总体架构</title>
+  <style>
+pre {
+padding: 5px;
+border-style: solid;
+border-width: 1px;
+border-color: #CCCCCC;
+background-color: #F4F4F4;
+}
+  </style>
+</head>
+<body>
+<span style="color: rgb(0, 0, 0); font-style: italic;">Hibernate
+JPetstore 系列</span><span style="font-style: italic;">之一</span><br>
+<h1>总体架构</h1>
+&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;
+&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;&nbsp; &nbsp; By&nbsp; <a
+ href="mailto:pzgyuanf@yahoo.com.cn">pprun</a><br>
+<br>
+<h2><a name="table_of_contents"></a>文档内容</h2>
+<ul>
+  <li><a href="#overview">概览</a></li>
+  <li><a href="#arch_diagram">应用组件结构图</a></li>
+  <li><a href="#components">组件剖析</a></li>
+  <ul>
+    <li><a href="#representation_tier">表示层</a></li>
+    <ul>
+      <li><a href="#front_redirection">前端跳转首页</a></li>
+      <li><a href="#web_securet">WEB安全目录</a></li>
+      <li><a href="#struts_basic_setup">Struts WEB应用基本配置</a></li>
+    </ul>
+    <li><a href="#controller_tier">控制层</a></li>
+    <ul>
+      <li><a href="#spring_comming">Spring (“春天”)来到</a></li>
+      <li><a href="#settings_in_web.xml">在 web.xml 文件中的配置</a></li>
+      <ul>
+        <li><a href="#flexibility_of_web_context">1. 应用上下文的机动性</a></li>
+        <li><a href="#Log4J_properties_file">2. Log4J 日志属性文件</a></li>
+        <li><a href="#spring_context_file_location">3. Spring 的上下文配置文件位置</a></li>
+      </ul>
+      <li><a href="#spring_context">Spring 上下文件配置</a></li>
+      <ul>
+        <li><a href="#facade_in_applicationContext.xml">applicationContext.xml
+门面的配置</a></li>
+        <li><a href="#properties_placeholder">属性占位符
+(placeholder)&nbsp; 配置</a></li>
+      </ul>
+      <li><a href="#Struts_Action_access_spring_bean">Struts
+控制层组件Action 访问 applicationContext.xml 配置的所有 Bean</a></li>
+    </ul>
+    <li><a href="#data_tier">数据层</a></li>
+    <ul>
+      <li><a href="#datasource">数据
+源及其所使用支持的连接池定义</a></li>
+      <li><a href="#Hibernate_SessionFactory">Hibernate 会话厂
+SessionFactory</a></li>
+      <li><a href="#hibernate.hbm2ddl.auto">hibernate.hbm2ddl.auto&nbsp;
+配置的值</a></li>
+      <li><a href="#JDBC_properties">JDBC 属性配置</a></li>
+    </ul>
+  </ul>
+  <li><a href="#not_used_files">其它目前不需要的文件</a></li>
+</ul>
+<br>
+<h2><a name="overview"></a>概览</h2>
+<div style="text-align: right;"><a href="#table_of_contents"><small>回到顶端</small></a><br>
+<br>
+</div>
+原始的实现(来自于Spring 的 Sample) 包含了两个WEB表示层的实现，一个是 Struts, 另一个则是
+SpringMVC。我们主要介绍 基于Struts 的实现，因这种方案至少目前来说更普遍。因此，我们将忽略以下源文件:<br>
+<ol>
+  <li>$hibernateJpetstore/src/org.springframework/samples/jpetstore/web/spring/</li>
+  <li>$hibernateJpetstore/web/WEB-INF/jsp/spring/</li>
+  <li>以有其它零零碎碎的文件(我们在介绍到相应的位置时会提及)</li>
+</ol>
+<br>
+另一方面，原版的DAO实现采用的是 iBatis, 同样是因为框架的采用率问题，我们将介绍移植成 Hibernate 的版本。<br>
+<br>
+<br>
+<h3><a name="arch_diagram"></a>应用组件结构图</h3>
+<br>
+<div style="text-align: right;"><a href="#table_of_contents"><small>回
+到顶端</small></a><br>
+<br>
+</div>
+<br>
+<img alt="体系结构图" src="images/arch.png"
+ style="width: 1740px; height: 1017px;"><br>
+<br>
+<br>
+<br>
+<br>
+<h2><a name="components"></a>组件剖析</h2>
+<div style="text-align: right;"><a href="#table_of_contents"><small>回
+到顶端</small></a><br>
+</div>
+<br>
+<h3><a name="representation_tier"></a>表示层</h3>
+表示层一般也叫视图层，主要是用户接口。<br>
+此应用是基于JSP 和标准标记库(JSTL)，以及Struts 的实现，主要包括：<br>
+<ol>
+  <li>&nbsp;$hibernateJpetstore/web/WEB-INF/jsp/struts/ 目录下的所有文件, </li>
+  <li>前端自动跳转首页
+$hibernateJpetstore/web/index.jsp. (该目录下的 index.html 及 help.html
+是我用于测试的文件，产品时应该移除)</li>
+  <li>&nbsp;$hibernateJpetstore/web/WEB-INF/struts-config.xml 文件</li>
+</ol>
+<br>
+<br>
+这里有两个重要的概念：前端跳转首页和WEB安全目录。<br>
+<h4><a name="front_redirection"></a>前端跳转首页</h4>
+<br>
+<div style="text-align: right;"><a href="#table_of_contents"><small>回
+到顶端</small></a><br>
+<br>
+</div>
+因为目前标准的Servlet 包容器都是由一个标准的servlet来解析 HTML/JSP(JSTL) 文件,
+这个标准是在目前使用的第三方(开源)的WEB框架，如Struts,
+SpringMVC等出现之前，所以它们对于这个框架的具体细节一无所知。这所谓的具体细节就是每个框架的私有的主控Servlet映射
+及其所需的配置文件的加载过程。对于 Struts 则是 web.xml 中指定的 ActionServlet以及在 WEB-INF 目录下的
+struts-config.xml 文件了：<br>
+<span class="921372908-18012007"><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font
+ face="Arial">
+<pre>  &lt;!--<br>    - Struts servlet that dispatches requests to registered actions.<br>      - Reads its configuration from "struts-config.xml".<br>      -<br>      - A web app can just contain one such servlet.<br>      - If you need multiple namespaces, use Struts' module mechanism.<br>    --&gt;<br>  &lt;servlet&gt;<br>    &lt;servlet-name&gt;action&lt;/servlet-name&gt;<br>    &lt;servlet-class&gt;org.apache.struts.action.ActionServlet&lt;/servlet-class&gt;<br>    &lt;load-on-startup&gt;3&lt;/load-on-startup&gt;<br>  &lt;/servlet&gt;<br><br>...<br><br><br>  &lt;!-- Struts web --&gt;	<br>  &lt;servlet-mapping&gt;<br>    &lt;servlet-name&gt;action&lt;/servlet-name&gt;<br>    &lt;url-pattern&gt;*.do&lt;/url-pattern&gt;<br>  &lt;/servlet-mapping&gt;<br></pre>
+</font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></span><br>
+<br>
+<span class="921372908-18012007"><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font
+ face="Arial">
+<pre>&nbsp; &lt;welcome-file-list&gt;<br><br>&nbsp;&nbsp;&nbsp; &lt;welcome-file&gt;index.jsp&lt;/welcome-file&gt;<br>    &lt;welcome-file&gt;index.html&lt;/welcome-file&gt;<br><br>&nbsp; &lt;/welcome-file-list&gt;<br><br></pre>
+</font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></span><br>
+因此，在 web.xml 中的 &lt;welcome-file-list&gt;
+中指定的文件只能是标准的HTML文件(包含标准的HTML标记)，标准的JSP文件(具体的标准版本是由SUN的 J2EE
+版本定义的，只能包含JSP及JSTL标记)。这个首页不能包含象 Struts
+等第三方框架定义的标记。因为在首页加载时只有标准的前端Servlet 存在，而第三方的前端 Servlet
+根本没有进入到自已的所映射的路径当中。(如上面的映射为 *.do) 首页是不允许 xxx.do 来作映射的。<br>
+所以，一般来讲，如果是使用 Struts 的中小型应用都 是做一个自转跳转的首页，在用户请求了应用的首页时，自动跳转到Struts框架的的前端
+servlet - ActionServlet 的控制范围中去：(如下是采用 JSTL 的 核心标记 redirect 来做跳转)<br>
+<span class="921372908-18012007"><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font
+ face="Arial">
+<pre>&lt;%@ taglib uri="http://java.sun.com/jstl/core" prefix="c" %&gt;<br><br>&lt;%-- Struts web --%&gt;<br>&lt;c:redirect url="/shop/index.do"/&gt;</pre>
+</font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></span>对
+于大型的应用，(如门户网站)，因为首页上有许多链接，因此一般来讲不需要做自动跳转。因为一个大的网站不可能是由一个或二个模块(基于Struts
+的模块)组成，它们一般是由多个应用组成的。(门户网站的新闻、体育，在你点击了相应的链接后，才跳转到相应的应用中去，此时正好可以跳转到
+Struts 的某个 ActionServlet 的控制范围中去) <br>
+<br>
+<br>
+<h4><a name="web_securet"></a>WEB安全目录</h4>
+<br>
+<div style="text-align: right;"><a href="#table_of_contents"><small>回
+到顶端</small></a><br>
+<br>
+</div>
+如果细心观察 struts-config.xml 文件，我们可以看到，大部分(其实是除了跳回首页的跳转)跳转的目的地都是位于
+/WEB-INF/ 目录下的JSP页面。根据Servlet 规范，这个目录是不能让用户直接访问的，比如在浏览器中直接输入
+http://localhost:8080/应用上下文/WEB-INF/abc.jsp，服务器是不能让用户直接查看此目录下的所有文件的。因为该目
+录是整个应用的配置的生死攸关的文件。不可以随便查看。<br>
+但是，这些文件是可以由服务器端组件调用的。所以目前大部分的框架，特别是SpringMVC
+都是将它所控制的页面也一同放入到这个目录下，这样一来就避免了用户(或都恶意者)跳过应用的控制流程直接请求某个页面的危险，虽然，在每个页面中都可以
+进行某些逻辑判断，比如用户是否登录了。但是如果这一逻辑被新手忘记了的话，如果这个页面被放在与了首页所在的同一位置(即所谓的
+public-html) 目录下的话，这将是系统的安全漏洞了。<br>
+<br>
+所以之前的一些书上的所谓的 jarkata 目录方其实是有缺陷的。(即我们IDE中所默认生成的目录结构是有缺陷的)。<br>
+<br>
+<br>
+<span class="921372908-18012007"><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font
+ face="Arial">
+<pre>&lt;forward name="global-signon" path="/WEB-INF/jsp/struts/SignonForm.jsp"/&gt;</pre>
+</font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></span><br>
+<h4><a name="struts_basic_setup"></a>Struts WEB应用基本配置</h4>
+<br>
+<div style="text-align: right;"><a href="#table_of_contents"><small>回
+到顶端</small></a><br>
+<br>
+</div>
+所以，对于基于 Struts 的WEB应用，表示层最基于的配置为：<br>
+<br>
+web.xml 文件：<br>
+<ol>
+  <li>指定 struts 的前端 Servlet, 及其的URL映射(即其的控制范围)</li>
+  <li>通过一个首页(或者一个链接)跳转到Struts 的管辖范围中。</li>
+  <li>WEB-INF/struts-config.xml 文件</li>
+</ol>
+<br>
+关于表示层的详细介绍将会在后续的系列-- 表示层技术中介绍。比如： Struts 的 ActionForm 就是相当于 JSP +
+Javabeans 设计中的Javabeans, 因此，ActionForm 是属于 表示层的组件。<br>
+<br>
+<br>
+<h2><a name="controller_tier"></a>控制层</h2>
+<br>
+<div style="text-align: right;"><a href="#table_of_contents"><small>回
+到顶端</small></a><br>
+<br>
+</div>
+控制层处在表示层与数据层之间的部分，其目的是为了使表示层与数据层脱耦(即表示层不能直接跟数据层通信--
+将用户提交的表单数据直接更新到数据层，数据层也不能在数据更新后直接通知表示层)。<br>
+<br>
+在 HibernateJpetstore 中，主要由以下几部分组成：<br>
+(值得提前说明的是，由于Spring 框架是一个“粘合剂”，所以在我们的这个应用中，它跨越了控制层和数据层的配置，如果使用了SpringMVC
+的话，那么它将在应用的所有层中起作用。)<br>
+<br>
+<ol>
+  <li>$hibernateJpetstore/src/org.springframework/samples/jpetstore/domain/logic/
+(我个人认为这个目录不应该放在 domain
+下，应该为$
+hibernateJpetstore/src/org.springframework/samples/jpetstore/logic,
+因为domain 是商业逻辑层范畴--
+一般为数据层的上层，但又不在控制层中，所以这样就出现了四层了，但如果严格按照MVC来划分的话，一般是把实体对象/领域对象 domain 规作
+数据层，因为它与DAO紧密相关的)</li>
+  <li>$hibernateJpetstore/src/org.springframework/samples/jpetstore/web/struts/
+目录下的所有 Action 的子类</li>
+  <li>$hibernateJpetstore/web/WEB-INF/struts-config.xml</li>
+  <li>$hibernateJpetstore/web/WEB-INF/applicationContext.xml&nbsp; <br>
+  </li>
+  <li>$hibernateJpetstore/web/WEB-INF/mail.properties <br>
+  </li>
+</ol>
+<br>
+$hibernateJpetstore/src/org.springframework/samples/jpetstore/domain/logic/
+目录只有 PetStoreFacade.java, PetStoreImpl.java 和
+SendOrderConfirmationEmailAdvice.java 对我们有用，忽略其它文件，因为它们被用在 SpringMVC 中。<br>
+<br>
+PetStoreFacade.java, PetStoreImpl.java 分别为门面接口及其实现<br>
+SendOrderConfirmationEmailAdvice.java&nbsp; 是一个 SpringAOP(面向方面) 的的一个
+Advice, 在Spring 的主配置文件 applicationContext.xml中指定在门面接口的
+PetStoreFacade.insertOrder() 方法成功调用后会调用此类的 afterReturning
+方法，此方法是向用户发一封定单确认邮件。<br>
+struts-config.xml 即是 struts 的配置核心文件<br>
+applicationContext.xml 是 Spring 的配置核心文件，正如前面所说，由于 Spring
+支持模块化配置，所以此文件并不包含所有的配置。<br>
+mail.properties 邮件主机配置文件，因为在发邮件时需要 SMTP
+(简单邮件传输协议)服务，你们可能会象我当初一样问，为什么J2EE 不内置一个 SMTP服务器呢，如果是这样，我们又会想要
+POP/POP3服务器，协议有成千上万种，不可能在J2EE中包含一切。<br>
+<br>
+最后，我们看看Spring是怎样将这几部分“粘合”起来的：<br>
+<br>
+<h3><a name="spring_comming"></a>Spring (“春天”)来到</h3>
+<br>
+<div style="text-align: right;"><a href="#table_of_contents"><small>回
+到顶端</small></a><br>
+</div>
+<h4><a name="settings_in_web.xml"></a>在 web.xml 文件中的配置</h4>
+<br>
+<div style="text-align: right;"><a href="#table_of_contents"><small>回
+到顶端</small></a><br>
+</div>
+<h5><a name="flexibility_of_web_context"></a>1. 应用上下文的机动性</h5>
+<br>
+<div style="text-align: right;"><a href="#table_of_contents"><small>回
+到顶端</small></a><br>
+</div>
+<br>
+<span class="921372908-18012007"><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font><font
+ face="Arial">
+<pre>  &lt;context-param&gt;<br>    &lt;param-name&gt;webAppRootKey&lt;/param-name&gt;<br>    &lt;param-value&gt;petstore.root&lt;/param-value&gt;<br>  &lt;/context-param&gt;</pre>
+</font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></font></span>这
+个配置是将应用的上下文路径机动性的处理，也就是其位置是最终应用放置的位置，比如：如果最终应用部署到 Tomcat 中，如果Tomcat 被装在
+D:\Tomcat\ 中，再假设应用的上下文被设置为 /hjpetstore 的话，则最终 petstore.root 的值为
+D:\Tomcat\webapps\hjpetstore\,
+这样一来，所有依赖这一位置的配置就有了一个相对的基础(我们都应该知道，文件的相对路径比绝对路径方便处理 )。比如应用的日志文件，因此在
+log4j 的配置文件(WEB-INF\log4j.properties)中有：<br>
+<br>
+<span class="921372908-18012007">
+<pre><span class="921372908-18012007"><font>log4j.appender.logfile.File=<span
+ style="color: rgb(255, 0, 0);">${petstore.root}</span>/WEB-INF/petstore.log</font></span></pre>
+</span><br>
+这个配置指定了日志文件最终的位置，其实原版本不是这样的，我之所以这样配是在测试阶段方便，真实的产品环境可以考虑这样子，放在应用的一个专门的日志目
+录下：<br>
+<span class="921372908-18012007">
+<pre><span class="921372908-18012007"><font>log4j.appender.logfile.File=${petstore.root}/log/petstore.log</font></span></pre>
+</span><span class="921372908-18012007"></span><span
+ class="921372908-18012007"></span><span class="921372908-18012007"></span><span
+ class="921372908-18012007"></span><br>
+<h5><a name="Log4J_properties_file"></a>2. Log4J 日志属性文件</h5>
+<br>
+<div style="text-align: right;"><a href="#table_of_contents"><small>回
+到顶端</small></a><br>
+</div>
+如下配置指定了 log4j 配置文件所在地： <br>
+<span class="921372908-18012007">
+<pre><br>&nbsp; &lt;context-param&gt;<br><br>&nbsp;&nbsp;&nbsp; &lt;param-name&gt;log4jConfigLocation&lt;/param-name&gt;<br><br>&nbsp;&nbsp;&nbsp; &lt;param-value&gt;/WEB-INF/log4j.properties&lt;/param-value&gt;<br><br>&nbsp; &lt;/context-param&gt;</pre>
+</span><br>
+这个文件Spring 特有的，用于支持 log4j 的类，注意如果应用是配置到 JBoss 当中去的话，则不能在 web.xml
+中配置这个类，因为 JBoss 有自己的一套用于支持 log4j 的配置，如果<br>
+在两个地方都指定，那么就会出现冲突。所以在使用 JBoss 时，就不需要这个配置了(注释掉，或者移除掉即可)<br>
+<span class="921372908-18012007">
+<pre>&nbsp; &lt;listener&gt;<br><br>&nbsp;&nbsp;&nbsp; &lt;listener-class&gt;org.springframework.web.util.Log4jConfigListener&lt;/listener-class&gt;<br><br>&nbsp; &lt;/listene&gt;</pre>
+</span><br>
+<br>
+<h5><a name="spring_context_file_location"></a>3. Spring 的上下文配置文件位置</h5>
+<br>
+<div style="text-align: right;"><a href="#table_of_contents"><small>回
+到顶端</small></a><br>
+</div>
+<br>
+<span class="921372908-18012007">
+<pre><br>&nbsp; &lt;context-param&gt;<br><br>&nbsp;&nbsp;&nbsp; &lt;param-name&gt;contextConfigLocation&lt;/param-name&gt;<br><br>&nbsp;&nbsp;&nbsp; &lt;!-- local datasource --&gt;<br><br>&nbsp;&nbsp;&nbsp; &lt;param-value&gt;<br><br><span
+ style="font-weight: bold; color: rgb(255, 0, 0);">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; /WEB-INF/dataAccessContext-hibernate.xml /WEB-INF/applicationContext.xml</span><br><br>&nbsp;&nbsp;&nbsp; &lt;/param-value&gt;<br><br>&nbsp; &lt;/context-param&gt;</pre>
+</span><br>
+这里把应用的两个Spring 配置文件一同指定了，重要的是这个值一定是以 <span
+ style="font-weight: bold; color: rgb(255, 0, 0);">'/'&nbsp;</span><span
+ style="color: rgb(255, 0, 0);"><span style="color: rgb(0, 0, 0);">
+开头，且多个文件间是以空格隔开的(不是以逗号分隔的).<br>
+<br>
+</span></span>注意，有些地方也把 applicationContext.xml 文件叫做 Spring 根上下文
+配置文件，因为通常，如果Spring 不是用在WEB环境下，则不可能有个 web.xml 文件，所以Spring通过只会在CLASSPATH
+中找 applicationContext.xml 文件，其它的配置文件是通过在 applicationContext.xml
+文件中导入的，如下语句：<br>
+<br>
+<span class="921372908-18012007">
+<pre>&lt;import resource="dataAccessContext-hibernate.xml"/&gt;</pre>
+</span><span class="921372908-18012007"></span><br>
+<h4><a name="spring_context"></a>Spring 上下文件配置</h4>
+<div style="text-align: right;"><big><small><a
+ href="Hibernate%20Jpetstore%20%D6%AE%D2%BB.html#table_of_contents"><small>回
+到顶端</small></a></small>
+</big></div>
+<br>
+<h5><a name="facade_in_applicationContext.xml"></a>applicationContext.xml
+门面的配置</h5>
+<br>
+<div style="text-align: right;"><a href="#table_of_contents"><small>回
+到顶端</small></a><br>
+</div>
+<br>
+<span class="921372908-18012007">
+<pre><br>&nbsp; &lt;<span style="color: rgb(255, 0, 0);">bean id="petStore" class="org.springframework.samples.jpetstore.domain.logic.PetStoreImpl"</span>&gt;<br><br>&nbsp;&nbsp;&nbsp; &lt;property name="accountDao" ref="accountDao"/&gt;<br><br>&nbsp;&nbsp;&nbsp; &lt;property name="categoryDao" ref="categoryDao"/&gt;<br><br>&nbsp;&nbsp;&nbsp; &lt;property name="productDao" ref="productDao"/&gt;<br><br>&nbsp;&nbsp;&nbsp; &lt;property name="itemDao" ref="itemDao"/&gt;<br><br>&nbsp;&nbsp;&nbsp; &lt;property name="orderDao" ref="orderDao"/&gt;<br><br>&nbsp; &lt;/bean&gt;</pre>
+</span><br>
+<br>
+<h5><a name="properties_placeholder"></a>属性占位符(placeholder)&nbsp; 配置</h5>
+<br>
+<div style="text-align: right;"><small><big><a href="#table_of_contents"><small>回
+到顶端</small></a></big><br>
+<br>
+</small></div>
+属性占位符(placeholder) 定义，这样在后续的配置中就可以使用指定的属性文件(这里是，mail.properties 和
+jdbc.properties) 配置的 key=value 中的 ${key} 来得到属性的值。<br>
+语法 <span style="color: rgb(255, 0, 0);">${"jdbc.username"}</span>
+的意思是使用属性 "jdbc.username" 的值(<span style="color: rgb(255, 0, 0);">$ {
+... }</span> 在规则表达式中总是<span style="color: rgb(255, 0, 0);">“求值”</span>的意
+思)，<br>
+<span class="921372908-18012007">
+<pre>&nbsp; &lt;!-- Configurer that replaces ${...} placeholders with values from properties files --&gt;<br><br>&nbsp; &lt;!-- (in this case, mail and JDBC related properties) --&gt;<br><br>&nbsp; &lt;bean id="propertyConfigurer" class="org.springframework.beans.factory.config.PropertyPlaceholderConfigurer"&gt;<br><br>&nbsp;&nbsp;&nbsp; &lt;property name="locations"&gt;<br><br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; &lt;list&gt;<br><br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; &lt;value&gt;WEB-INF/mail.properties&lt;/value&gt;<br><br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; &lt;value&gt;WEB-INF/jdbc.properties&lt;/value&gt;<br><br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; &lt;/list&gt;<br><br>&nbsp;&nbsp;&nbsp; &lt;/property&gt;<br><br>&nbsp; &lt;/bean&gt;</pre>
+</span><br>
+<br>
+<h4><a name="Struts_Action_access_spring_bean"></a>Struts 控制层组件Action
+访问
+applicationContext.xml 配置的所有 Bean</h4>
+<br>
+<div style="text-align: right;"><small><big><a href="#table_of_contents"><small>回
+到顶端</small></a></big><br>
+<br>
+</small></div>
+注意，Spring 是一个“粘合剂”角色，但如果为了引入 Spring&nbsp; 的功能，我们需要在
+表示层，控制层，或数据层做太多手脚的话，这样是不理想的，因为模块化的原则就是要尽量达到不让使用者知道自己的实现细节。在我们的应用中，的确有几个地
+方出现了 Spring&nbsp; 的类：<br>
+<br>
+在应用的所有 Action 的基类 BaseAction中 定义<br>
+<span class="921372908-18012007">
+<pre>import javax.servlet.ServletContext;<br><br>import org.apache.struts.action.Action;<br>import org.apache.struts.action.ActionServlet;<br><br>import org.springframework.samples.jpetstore.domain.logic.PetStoreFacade;<br>import org.springframework.web.context.WebApplicationContext;<br>import org.springframework.web.context.support.WebApplicationContextUtils;<br><br>/**<br><span
+ style="color: rgb(255, 0, 0);"> * 我们在这个基类中得到了 Spring 定义的 WebApplicationContext (ApplicationContext的子类),</span><br
+ style="color: rgb(255, 0, 0);"><span style="color: rgb(255, 0, 0);"> * 有了它，就可以调用 getBean("传入配置文件中该Bean 的 ID"); 来获得 Bean 的实例. 这里我们只想</span><br
+ style="color: rgb(255, 0, 0);"><span style="color: rgb(255, 0, 0);"> * 获得门面的实现类，有了它就可以在此类的所有子类，即 XXXAction 中调用门面的方法进行DAO操作, 如下：</span><br
+ style="color: rgb(255, 0, 0);"><span style="color: rgb(255, 0, 0);"> * getPetStore().XXX()</span>;<br> * <br> *<br> * &lt;p&gt;另一种方法可以直接使用 Spring's 自带为 Struts 准备的 ActionSupport. <br> * 有兴趣可以好好一下。<br> *<br> * <br> */<br>public abstract class BaseAction extends Action {<br>  <br>  private PetStoreFacade petStore;<br>  <br>  public void setServlet(ActionServlet actionServlet) {<br>    super.setServlet(actionServlet);<br>    if (actionServlet != null) {<br>      // fixed by pprun, must be synchronized<br>      synchronized (this) {<br>        ServletContext servletContext = actionServlet.getServletContext();<br>        WebApplicationContext wac =<br>                WebApplicationContextUtils.getRequiredWebApplicationContext(servletContext);<br>        this.petStore = (PetStoreFacade) wac.getBean("petStore"); <span
+ style="color: rgb(255, 0, 0);">// 门面 Bean 在 applicationContext.xml 文件中的 id="petStore"</span><br>      }<br>    }<br>  }<br>  <br>  protected PetStoreFacade getPetStore() {<br>    return petStore;<br>  }<br>  <br>}</pre>
+</span><br>
+<br>
+关于控制层的详细介绍将会在后续的系列-- 控制层技术中介绍<br>
+<br>
+<br>
+<h2><a name="data_tier"></a>数据层</h2>
+<br>
+<div style="text-align: right;"><small><big><a href="#table_of_contents"><small>回
+到顶端</small></a></big><br>
+<br>
+</small></div>
+数据层，有些书上偶尔把商业逻辑层与之混淆在一起，因为商业实体(或者叫领域对象 Domail)通过是与数据库中的表存在着很紧密的联系的。<br>
+<br>
+在此应用中，由以下几部分组成：<br>
+<ol>
+  <li>$hibernateJpetstore/src/org.springframework/samples/jpetstore/dao/</li>
+  <li>$hibernateJpetstore/src/org.springframework/samples/jpetstore/domain/</li>
+  <li>$hibernateJpetstore/src/org.springframework/samples/jpetstore/dao.hibernate/</li>
+  <li>$hibernateJpetstore/web/WEB-INF/applicationContext.xml&nbsp; </li>
+  <li>$hibernateJpetstore/web/WEB-INF/dataAccessContext-hibernate.xml </li>
+  <li>$hibernateJpetstore/web/WEB-INF/jdbc.properties</li>
+</ol>
+$hibernateJpetstore/src/org.springframework/samples/jpetstore/dao/
+包中定义的所有DAO接口(每个接口所支持的增、删、改、查方法)<br>
+<br>
+$hibernateJpetstore/src/org.springframework/samples/jpetstore/domain/
+包中定义的是商业实体对象及每个对象的 hbm.xml 文件<br>
+<br>
+$hibernateJpetstore/src/org.springframework/samples/jpetstore/dao.hibernate/
+是采用 Hibernate 实现的DAO接口<br>
+<br>
+$hibernateJpetstore/web/WEB-INF/dataAccessContext-hibernate.xml
+数据访问层的属性配置(Spring 上下文配置的一部分)，由于DAO实现是采用 hibernate 实现的，所以这里还包括了传统的
+Hibernate.cfg.xml 及所有实体的 hbm.xml 文件的配置：<br>
+<br>
+<br>
+<h3><a name="datasource"></a>数据源及其所使用支持的连接池定义</h3>
+<br>
+<div style="text-align: right;"><small><big><a href="#table_of_contents"><small>回
+到顶端</small></a></big><br>
+<br>
+</small></div>
+这里采用的局部的(local)连接池框架是 <a href="http://www.mchange.com/projects/c3p0/">C3P0
+</a>,&nbsp; (此外还有类似的连接池框架，如 Apache Commons <a
+ href="http://jakarta.apache.org/commons/dbcp/">DBCP</a>)，之所以称之为局部的，是因为它
+不依赖于特定的应用服务器所支持的内置的连接池实现(每个应用服务器都有自已的对数据库的连接方案)，那个连接池一般叫做 JNDI
+数据源，因为在应用服务器启动后，会将配置的所有数据源(当然还包含其他对象)把它们存放到 JNDI( Java Name Directory
+Interface, Java 名称目录接口，相当于注册表，用于存入全局配置信息)中供部署的应用使用。<br>
+<span class="921372908-18012007">
+<pre> &lt;bean id="dataSource" class="com.mchange.v2.c3p0.ComboPooledDataSource" destroy-method="close"&gt;<br>    <span
+ style="color: rgb(255, 0, 0);">&lt;!-- 以下配置都是使用 jdbc.properties 属性文件中的配置，而之所以可以这样写，就是因为有 属性占位符配置的原因 --&gt;</span><br>    &lt;property name="driverClass" value="${jdbc.driverClassName}"/&gt;<br>    &lt;property name="jdbcUrl" value="${jdbc.url}"/&gt;<br>    &lt;property name="user" value="${jdbc.username}"/&gt;<br>    &lt;property name="password" value="${jdbc.password}"/&gt;<br><br>    <span
+ style="color: rgb(255, 0, 0);">&lt;!-- 连接池维持的最小的连接个数 --&gt;</span><br>    &lt;property name="minPoolSize" value="5"/&gt;<br>    <span
+ style="color: rgb(255, 0, 0);">&lt;!-- 连接池维持的最大的连接个数 --&gt;</span><br>    &lt;property name="maxPoolSize" value="20"/&gt;<br>    <span
+ style="color: rgb(255, 0, 0);">&lt;!-- 最大空闲时间, 当某个连接在这个时间内没活动后将从池中移除，前提是池中至少多于最少的连接数: minPoolSize --&gt;</span><br>    &lt;property name="maxIdleTime" value="1800"/&gt;<br>    <span
+ style="color: rgb(255, 0, 0);">&lt;!-- 为加强准备语句的执行性能，此参数指定被缓存的 PreparedStatement 的个数 --&gt;</span><br>    &lt;property name="maxStatements" value="50"/&gt;<br>  &lt;/bean&gt;</pre>
+</span>这些属性在<a href="#JDBC_properties">下面的 jdbc.properties</a> 文件中指定。<br>
+<br>
+<br>
+<br>
+<h3><a name="Hibernate_SessionFactory"></a>Hibernate 会话厂
+SessionFactory</h3>
+<br>
+<div style="text-align: right;"><small><big><a href="#table_of_contents"><small>回
+到顶端</small></a></big><br>
+<br>
+</small></div>
+Session 就是用于每次与数据库会话的，因此需要：<br>
+数据库的配置参数，这些参数就是 上面的数据源指定的! 因此我们只需引用即可：<span
+ style="font-family: monospace;"> ref="dataSource"；<br>
+实体映射配置<br>
+hibernate.cfg.xml 配置<br>
+结果缓存配置(这里使用的是开源的 ehcache)<br>
+</span><span class="921372908-18012007">
+<pre>  &lt;!-- Hibernate SessionFactory --&gt;<br>  &lt;bean id="sessionFactory" class="org.springframework.orm.hibernate3.LocalSessionFactoryBean"&gt;<br>    <span
+ style="color: rgb(255, 0, 0);">&lt;!-- 引用前面定义的数据源 --&gt;</span><br>    &lt;property name="dataSource" ref="dataSource"/&gt;<br><br>    <span
+ style="color: rgb(255, 0, 0);">&lt;!-- 所有实体映射文件列表, 所有的 hbm.xml 文件 --&gt;</span><br>    &lt;property name="mappingResources"&gt;<br>      &lt;list&gt;<br>        &lt;value&gt;org/springframework/samples/jpetstore/domain/Account.hbm.xml&lt;/value&gt;<br>        &lt;value&gt;org/springframework/samples/jpetstore/domain/Banner.hbm.xml&lt;/value&gt;<br>        &lt;value&gt;org/springframework/samples/jpetstore/domain/Category.hbm.xml&lt;/value&gt;<br>        &lt;value&gt;org/springframework/samples/jpetstore/domain/Inventory.hbm.xml&lt;/value&gt;<br>        &lt;value&gt;org/springframework/samples/jpetstore/domain/Item.hbm.xml&lt;/value&gt;<br>        &lt;value&gt;org/springframework/samples/jpetstore/domain/LineItem.hbm.xml&lt;/value&gt;<br>        &lt;value&gt;org/springframework/samples/jpetstore/domain/Order.hbm.xml&lt;/value&gt;<br>        &lt;value&gt;org/springframework/samples/jpetstore/domain/Product.hbm.xml&lt;/value&gt;<br>        &lt;value&gt;org/springframework/samples/jpetstore/domain/Supplier.hbm.xml&lt;/value&gt;<br>      &lt;/list&gt;<br>    &lt;/property&gt;<br><br>    <span
+ style="color: rgb(255, 0, 0);">&lt;!-- 传统上的 hibernate.cfg.xml 文件的参数放在这里 --&gt;</span><br>    &lt;property name="hibernateProperties"&gt;<br>      &lt;props&gt;<br>	<span
+ style="color: rgb(255, 0, 0);">&lt;!-- 指定数据库方言 --&gt;</span><br>        &lt;prop key="hibernate.dialect"&gt;${hibernate.dialect}&lt;/prop&gt;<br>        <span
+ style="color: rgb(255, 0, 0);">&lt;!-- 是否在日志中输出所有Hibernate与数据库交互的SQL语句 --&gt;</span><br>        &lt;prop key="hibernate.show_sql"&gt;true&lt;/prop&gt;<br>        <span
+ style="color: rgb(255, 0, 0);">&lt;!-- 是否在日志中输出的SQL 语句格式化成易读形式 --&gt;</span><br>        &lt;prop key="hibernate.format_sql"&gt;true&lt;/prop&gt;<br>        <span
+ style="color: rgb(255, 0, 0);">&lt;!-- 是否显示统计形式，一般在测试阶段使用 --&gt;</span><br>        &lt;prop key="hibernate.generate_statistics"&gt;true&lt;/prop&gt; <br>       <span
+ style="color: rgb(255, 0, 0);"> &lt;!-- 对于级联查询，一次性获取的级联深度， @todo 需进一步研究 --&gt;</span><br>        &lt;prop key="hibernate.max_fetch_depth"&gt;2&lt;/prop&gt;<br>	<span
+ style="color: rgb(255, 0, 0);">&lt;!-- 见下面的解释 --&gt;</span><br>        &lt;prop key="hibernate.hbm2ddl.auto"&gt;update&lt;/prop&gt; <br><br>        &lt;!-- <br>        　　<span
+ style="color: rgb(255, 0, 0);">结果缓存配置：</span><br>          - 将ehcache.xml 置于 classpath 中<br>          - 如果不设置“查询缓存”，那么hibernate只会缓存使用load()方法<br>          获得的单个持久化对象，如果想缓存使用findall()、 list()、Iterator()、<br>          createCriteria()、createQuery()等方法获得的数据结果集的话，就需要设置<br>          hibernate.cache.use_query_cache true 才行<br>          - 在Hbm文件中添加&lt;cache usage="read-only"/&gt;<br>          - 如果需要“查询缓存”，还需要在使用<br>            Query或Criteria()时设置其setCacheable(true);属性<br>        --&gt;<br>        &lt;prop key="hibernate.cache.use_query_cache"&gt;true&lt;/prop&gt;<br>        &lt;prop key="hibernate.cache.provider_class"&gt;org.hibernate.cache.EhCacheProvider&lt;/prop&gt;<br>      &lt;/props&gt;<br>    &lt;/property&gt;<br><br>    <span
+ style="color: rgb(255, 0, 0);">&lt;!-- 为解决 merge()方法语义的歧义 @todo 以后进一步解析或者你可以看一下相应的文档 --&gt;</span><br>    &lt;property name="eventListeners"&gt;<br>      &lt;map&gt;<br>        &lt;entry key="merge"&gt;<br>          &lt;bean class="org.springframework.orm.hibernate3.support.IdTransferringMergeEventListener"/&gt;<br>        &lt;/entry&gt;<br>      &lt;/map&gt;<br>    &lt;/property&gt;<br>  &lt;/bean&gt;<br><br></pre>
+</span><br>
+<h4><a name="hibernate.hbm2ddl.auto"></a>hibernate.hbm2ddl.auto&nbsp;
+配置的值</h4>
+<br>
+<div style="text-align: right;"><a href="#table_of_contents"><small>回
+到顶端</small></a><br>
+</div>
+<br>
+<ol>
+  <li><span style="font-weight: bold;">create</span> 在每次
+SesstionFactory 构建时(一般是应用重启时，或者伴随着应用服务器重启时)，先将之前数据库中的所有数据全部清空，后紧跟着根据所有的
+hbm.xml 映射文件重新创建新的数据库表</li>
+  <li><span style="font-weight: bold;">create-drop</span>&nbsp; 除了
+create 的所有含义之外，在每次应用的退出前，将进行一次数据空清空。因此这个配置将有两次清空操作，一次是退出，一次是启动时。</li>
+  <li><span style="font-weight: bold;">update</span>
+如果在开发阶段理发了实体对象的映射文件(hbm.xml) 的定义后，此配置将后台的数据库表进行更新(如增加表的列)</li>
+  <li><span style="font-weight: bold;">validate</span>
+用于校验现有的表与现有的配置是否一致。</li>
+</ol>
+<br>
+<span style="font-weight: bold;"><br>
+</span>值得注意的是 hibernate.hbm2ddl.auto 的配置：<br>
+<span style="font-style: italic;">Usually you only leave it turned on
+in continous unit testing, but another run of hbm2ddl would drop
+everything you have stored - the <span style="font-weight: bold;">create
+</span>configuration setting actually translates into "drop all tables
+from the schema, then re-create all tables, when the SessionFactory is
+build".</span><span style="font-style: italic;"> Most new Hibernate
+users fail at this point and we see questions about Table not found
+error messages regularly. </span><br>
+<br>
+<span style="color: rgb(255, 0, 0);">我这里翻译一下：</span><br>
+一般情况下，只有在连续的测试阶段时需要设置这个值，因为在测试时一般都希望在测试完后，数据与测试前并无变化。<br>
+将hibernate.hbm2ddl.auto&nbsp; 配置成 "create" 是意思是在每次 SesstionFactory
+构建时(一般是应用重启时，或者伴随着应用服务器重启时)，先将之前数据库中的所有数据全部清空，后紧跟着根据所有的 hbm.xml
+映射文件重新创建新的数据库表。大我数 Hibernate 的新手总是没有理解这一点，他们以为 "create" 都是简单地创建，而忽略了
+"drop" 之前的丢弃副作用。<br>
+<br>
+<br>
+从上可以看出，除了 validate
+在产品阶段看来有点用之外(但是肯定会影响应用的启动速度的)，其它的并不适合已经部署了的产品。特别是对于已存在数据的数据库。<br>
+试想如果采用了 create 或 create-drop，在不经意(应用重启)间可能会将所有的数据库的数据全部清空。<br>
+<br>
+<br>
+<h3><a name="JDBC_properties"></a>JDBC 属性配置</h3>
+<br>
+<div style="text-align: right;"><small><big><a href="#table_of_contents"><small>回
+到顶端</small></a></big><br>
+<br>
+</small></div>
+$hibernateJpetstore/web/WEB-INF/jdbc.properties 配置数据库的属性，如下为 mysql 的配置：<br>
+<span class="921372908-18012007">
+<pre>######## mysql for Hibernate ########<br># the database is hjpetstore<br>#####################################<br><br># <span
+ style="color: rgb(255, 0, 0);">数据库驱动</span><br>jdbc.driverClassName=com.mysql.jdbc.Driver<br><br># <span
+ style="color: rgb(255, 0, 0);">连接数据库的 jdbc url</span><br>jdbc.url=jdbc:mysql://localhost:3306/hjpetstore?useUnicode=true&amp;characterEncoding=UTF-8<br><br># <span
+ style="color: rgb(255, 0, 0);">用户名</span><br>jdbc.username=jpetstore<br><br># <span
+ style="color: rgb(255, 0, 0);">密码</span><br>jdbc.password=jpetstore<br><br># <span
+ style="color: rgb(255, 0, 0);">指定数据库方言，这样 hibernate 就可以最大限度地针对特定的数据库进行优化</span><br>hibernate.dialect=org.hibernate.dialect.MySQLDialect<br></pre>
+</span><br>
+<br>
+关于数据层的详细介绍, 如事务管理配置，DAO反向注入等，将会在后续的系列-- 数据层技术中介绍<br>
+<br>
+<br>
+<h2><a name="not_used_files"></a>其它目前不需要的文件</h2>
+<br>
+<div style="text-align: right;"><a href="#table_of_contents"><small>回
+到顶端</small></a><br>
+</div>
+WEB-INF/ 下的 <br>
+server-config.wsdd 是用于 Web Service 的配置，目前不需要。<br>
+petstore-servlet.xml , remoting-servlet.xml, 是 SpringMVC
+用到的文件(相当于struts-config.xml配置文件)<br>
+sql-map-config.xml 是 iBatis 的配置文件, 因为我们使用的是 Hibernate， 所以不需要<br>
+<br>
+dataAccessContext 打头的文件是另一种数据源的配置方案，比如基于 JTA(JNDI数据源)的方案，在适当的时候将进行介绍。<br>
+<br>
+<br>
+包 org.springframework.samples.jpetstore.service 是用于 Web Service 的文件，不需要<br>
+<br>
+包&nbsp; org.springframework.samples.jpetstore.service.client 是用于测试 Web
+Service 的单独的应用(有 main() 方法)，不需要<br>
+<br>
+<br>
+</body>
+</html>

@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE hibernate-mapping SYSTEM "http://hibernate.sourceforge.net/hibernate-mapping-3.0.dtd">
+<!--
+    Document   : Inventory.hbm.xml
+    Created on : 2006年10月2日, 下午4:24
+    Author     : pprun
+    Description:
+        Purpose of the document follows.
+-->
+
+<hibernate-mapping package="org.springframework.samples.jpetstore.domain">
+  <class name="Inventory" table="Inventory" lazy="true">
+    <cache usage="read-write"/>
+    <id name="id" type="long" column="InventoryId" unsaved-value="null" access="field">
+      <generator class="foreign">
+        <param name="property">item</param>
+      </generator>
+    </id>
+    
+    <!-- A versioned entity. -->
+    <version name="version" access="org.hibernate.property.DirectPropertyAccessor"/>
+    
+    <!-- A shared primary key association. (Item 的主键) -->
+    <one-to-one name="item" class="Item" constrained="true"/>
+    
+    <!-- We can't change the creation time, so map it with update="false". 
+    
+    -->
+    <property name="dateAdded"
+              type="timestamp"
+              update="false"
+              not-null="true"
+              access="field"/> 
+              
+    <property name="quantity" type="integer" not-null="true" />
+  </class>
+</hibernate-mapping>

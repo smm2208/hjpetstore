@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE hibernate-mapping SYSTEM "http://hibernate.sourceforge.net/hibernate-mapping-3.0.dtd">
+<!--
+    Document   : Inventory.hbm.xml
+    Created on : 2006年10月2日, 下午4:24
+    Author     : pprun
+    Description:
+        Purpose of the document follows.
+-->
+
+<hibernate-mapping package="org.springframework.samples.jpetstore.domain">
+  
+  <class name="Banner" table="Banner">
+    <cache usage="read-only"/>
+    <id name="id" type="long" column="bannerId" unsaved-value="null" access="field">
+      <generator class="native" />
+    </id>
+    
+    <!-- A versioned entity. -->
+    <version name="version" access="org.hibernate.property.DirectPropertyAccessor"/>
+    
+    <!-- 
+    A simple uni-directional one-to-many association(favCategory to Banner)
+    cascade="none"(default) 也就是当 category 作出更改时，我们不对 banner 更改.
+    -->
+    <many-to-one
+      name="favCategory"
+      column="favCategoryId"
+      cascade="none"
+      class="Category"
+      not-null="true"
+      fetch="join"/>
+    
+    <property name="bannerName"
+              type="string"
+              not-null="false" /> 
+
+  </class>
+</hibernate-mapping>

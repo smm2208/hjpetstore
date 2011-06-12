@@ -1,0 +1,1759 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+  <meta content="text/html; charset=GBK" http-equiv="content-type">
+  <title>Hibernate Jpetstore 之四 表示层技术</title>
+</head>
+<body>
+Hibernate JPetstore 系列之四<br>
+<h1>表示层技术</h1>
+<br>
+<br>
+在阅读本篇文章之前，请先仔细阅读前面系列的相关内容。<br>
+<br>
+<h2>概览</h2>
+在各种框架兴兴向荣的今天，你能想象最初 Java WEB 开发者的日子吗？要知道，就算是JSP，当时都被寄予厚望，因为当时，开发者不得不在
+Servlet 中书写之如：out.println("&lt;html&gt;&lt;head&gt;&lt;title&gt;My
+God&lt;/title&gt;&lt;/head&gt;&lt;body&gt;"); <br>
+你能想象，以这种方式做一个象样的页面是怎样的一种情形。这种情况下，是将“表示层”的内容(HTML标记)渗透进Java代码中
+了，你哪怕是修改页面上的一个文字，你都不得不在上述的 println 中修改 -&gt; 编译 -&gt; 测试-&gt; ...<br>
+于是，JSP应运而生，可是很快，开发者发现，情况反过来了：在JSP页面代码中到处散布有之如：<br>
+<span style="font-family: monospace;">&lt;%</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+String amount =
+request.getParameter("amount");</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; if
+( amount != null &amp;&amp;
+amount.length() &gt; 0 ) {</span><br style="font-family: monospace;">
+<br style="font-family: monospace;">
+<span style="font-family: monospace;">...</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">%&gt;</span><br>
+<br>
+也就是说，此时表示逻辑的代码渗透进页面代码中了。<br>
+于是才有后来的 JavaBeans, &lt;jsp:useBean&gt;, Taglibs 等，以及术语 WEB MVC, MVC2 等。<br>
+<br>
+毫无疑问，对于在JAVA Web 领域工作多年的老手，看到我这篇关于 Struts 的文章肯定会觉得好土，或者甚至老掉牙了!
+的确，这也是我这段时间一直在考虑是否需要写这样一个系列的原因。<br>
+不管现在 JSF. WebWorks/Struts2, SpringMVC , JBoss Seam 被如何鼓吹，Struts 作为 Web
+框架的先行者，还是有它的位置。尽管此例子中所采用的方法比起最新的 Struts (Struts 1.3.x 系列)也同样显得有些陈旧，但是正如
+JAVA
+领域中的一惯作法，“在引入新功能前先考虑向后兼容”，因此，新的功能尽管加入吧，你可以欣喜若狂，但我也同样可以一直运行已经稳定运行好几年的产品。<br>
+<br>
+随便提一下，本人并不认为上述新的WEB框架使开发工作简化了多少，相反，倒是增加了不少复杂性。作为新手，很难保证在研究这些框架一周后能开发出一个稳
+定可靠的方案。相反象几个简单的框架反而在引入更加衫的设计方法的同时，简化了开发的难度：<a
+ href="http://wicket.sourceforge.net/">Wicket</a>&nbsp;&nbsp;&nbsp; <a
+ href="http://click.sourceforge.net/">Click</a> ，而且更加符合当今的 Web2 的需求。<br>
+<br>
+好了，一来就说了这么多，无非是为了引入主角 Struts，但是请原谅，关于整个Struts
+的介绍是需要一整书才能介绍完的。所以我们还是以代码为依托，一步步来吧。<br>
+再有，由于 JSTL 的流行，几乎所有的 Web 框架都依靠它来排除JSP脚本。但是我们不会在这里介绍每个 JSTL
+标记的用法，具体的用法见工程的JSP 源代码。<br>
+<br>
+<br>
+<h2>Struts 表示层组件 FormBean</h2>
+<h3>FormBean 配置</h3>
+FormBean 即是我们熟悉的 JSP + JavaBean 设置方式中的 JavaBean，只不过它作为 Struts 框架的组件担任起
+页面表单与 Struts Action的信息传递的使者。<br>
+为了弄清 FormBean 的工作原理，我们现在给出我们整个的 struts-config.xml 文件的内容<br>
+<br>
+<span style="font-family: monospace;">&lt;?xml version="1.0"
+encoding="GBK"?&gt;</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&lt;!DOCTYPE struts-config PUBLIC</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">"-//Apache Software
+Foundation//DTD Struts Configuration 1.1//EN"</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">"http://jakarta.apache.org/struts/dtds/struts-config_1_1.dtd"&gt;</span><br
+ style="font-family: monospace;">
+<br style="font-family: monospace;">
+<span style="font-family: monospace;">&lt;struts-config&gt;</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp; &lt;!-- 配置此应用中的所有 FormBean
+--&gt;</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp; &lt;form-beans&gt;<br>
+&nbsp;&nbsp;&nbsp; <span
+ style="font-weight: bold; color: rgb(51, 204, 0);">&lt;!-- 这种复用
+FormBean 的方式值得讨论，见紧随其后的说明 1 --&gt;</span><br>
+&nbsp;&nbsp;&nbsp; <span style="color: rgb(51, 204, 0);">&lt;!--
+与注册帐户和帐户信息相关的页面使用的 FormBean --&gt;</span><br
+ style="font-family: monospace;">
+</span><span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;
+&lt;form-bean name="accountForm"
+type="org.springframework.samples.jpetstore.web.struts.AccountActionForm"/&gt;<br>
+&nbsp;&nbsp;&nbsp; <span style="color: rgb(51, 204, 0);">&lt;!--
+与购物车相关的页面使用的 FormBean --&gt;</span><br style="font-family: monospace;">
+</span><span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;
+&lt;form-bean name="cartForm"
+type="org.springframework.samples.jpetstore.web.struts.CartActionForm"/&gt;<br>
+</span><span style="font-family: monospace;"><span
+ style="color: rgb(51, 204, 0);">&nbsp;&nbsp;&nbsp; &lt;!-- 没有对应的页面元素的
+FormBean, 例如点击一个链接或按下搜索按钮等等功能，被设计成不需要 FormBean 来收集用户输入 --&gt;</span></span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; &lt;form-bean
+name="emptyForm"
+type="org.springframework.samples.jpetstore.web.struts.BaseActionForm"/&gt;<br>
+&nbsp;&nbsp;&nbsp; </span><span style="font-family: monospace;"><span
+ style="color: rgb(51, 204, 0);">&lt;!-- 与帐户修改相关的页面使用的
+FormBean，因为此时也许在当前的 session 已经存在了一个 accountForm --&gt;</span></span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; &lt;form-bean
+name="workingAccountForm"
+type="org.springframework.samples.jpetstore.web.struts.AccountActionForm"/&gt;<br>
+&nbsp;&nbsp;&nbsp; </span><span style="font-family: monospace;"><span
+ style="color: rgb(51, 204, 0);">&lt;!-- 与所有定单操作相关的页面使用的 FormBean --&gt;</span></span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; &lt;form-bean
+name="workingOrderForm"
+type="org.springframework.samples.jpetstore.web.struts.OrderActionForm"/&gt;</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp; &lt;/form-beans&gt;</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp; <br>
+&nbsp; <span style="color: rgb(51, 204, 0);">&lt;!-- 全局跳转声明，这此跳转可以被所有的
+Action 中共享 --&gt;</span><br style="font-family: monospace;">
+</span><span style="font-family: monospace;">&nbsp;
+&lt;global-forwards&gt;</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; &lt;forward
+name="failure" path="/WEB-INF/jsp/struts/Error.jsp"
+redirect="false"/&gt;</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; &lt;forward
+name="unknown-error" path="/WEB-INF/jsp/struts/Error.jsp"/&gt;</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; &lt;forward
+name="global-signon" path="/WEB-INF/jsp/struts/SignonForm.jsp"/&gt;</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp; &lt;/global-forwards&gt;</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp; <br>
+&nbsp; <span style="color: rgb(51, 204, 0);">&lt;!-- 以下为所有的 Action 映射
+--&gt;</span><br style="font-family: monospace;">
+</span><span style="font-family: monospace;">&nbsp;
+&lt;action-mappings&gt;<br>
+&nbsp;&nbsp;&nbsp; <span style="color: rgb(51, 204, 0);">&lt;!--
+点击链接将一只宠物加入购物车 --&gt;</span><br style="font-family: monospace;">
+</span><span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;
+&lt;action path="/shop/addItemToCart"
+type="org.springframework.samples.jpetstore.web.struts.AddItemToCartAction"</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+name="cartForm" scope="session" validate="false"&gt;</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+&lt;forward name="success" path="/WEB-INF/jsp/struts/Cart.jsp"/&gt;</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; &lt;/action&gt;<br>
+&nbsp;&nbsp;&nbsp; <br>
+&nbsp;&nbsp;&nbsp; <span style="color: rgb(51, 204, 0);">&lt;!-- 结算购物车
+--&gt;</span><br style="font-family: monospace;">
+</span><span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;
+&lt;action path="/shop/checkout"
+type="org.springframework.samples.jpetstore.web.struts.ViewCartAction"</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+name="cartForm" scope="session" validate="false"&gt;</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+&lt;forward name="success" path="/WEB-INF/jsp/struts/Checkout.jsp"/&gt;</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; &lt;/action&gt;<br>
+<br>
+&nbsp;&nbsp;&nbsp; <span style="color: rgb(51, 204, 0);">&lt;!--
+修改帐号信息 --&gt;</span><br style="font-family: monospace;">
+</span><span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;
+&lt;action path="/shop/editAccount"
+type="org.springframework.samples.jpetstore.web.struts.EditAccountAction"</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+name="workingAccountForm" scope="session" validate="true"
+input="/WEB-INF/jsp/struts/EditAccountForm.jsp"&gt;</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+&lt;forward name="success" path="/shop/index.do"/&gt;</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; &lt;/action&gt;</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; &lt;action
+path="/shop/editAccountForm"
+type="org.springframework.samples.jpetstore.web.struts.EditAccountFormAction"</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+name="workingAccountForm" scope="session"&nbsp;&nbsp;&nbsp;
+validate="false"&gt;</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+&lt;forward name="success"
+path="/WEB-INF/jsp/struts/EditAccountForm.jsp"/&gt;</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; &lt;/action&gt;</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; &lt;action
+path="/shop/index"
+type="org.springframework.samples.jpetstore.web.struts.DoNothingAction"</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+validate="false"&gt;</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+&lt;forward name="success" path="/WEB-INF/jsp/struts/index.jsp"/&gt;</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; &lt;/action&gt;</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; &lt;action
+path="/shop/help"
+type="org.springframework.samples.jpetstore.web.struts.DoNothingAction"</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+validate="false"&gt;</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+&lt;forward name="success" path="/WEB-INF/jsp/struts/help.jsp"/&gt;</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; &lt;/action&gt;</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; &lt;action
+path="/shop/listOrders"
+type="org.springframework.samples.jpetstore.web.struts.ListOrdersAction"</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+name="accountForm" scope="session" validate="false"&gt;</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+&lt;forward name="success"
+path="/WEB-INF/jsp/struts/ListOrders.jsp"/&gt;</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; &lt;/action&gt;</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; &lt;action
+path="/shop/newAccount"
+type="org.springframework.samples.jpetstore.web.struts.NewAccountAction"</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+name="workingAccountForm" scope="session" validate="true"
+input="/WEB-INF/jsp/struts/NewAccountForm.jsp"&gt;</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+&lt;forward name="success" path="/shop/index.do"/&gt;</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; &lt;/action&gt;</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; &lt;action
+path="/shop/newAccountForm"
+type="org.springframework.samples.jpetstore.web.struts.NewAccountFormAction"</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+name="workingAccountForm" scope="session" validate="false"&gt;</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+&lt;forward name="success"
+path="/WEB-INF/jsp/struts/NewAccountForm.jsp"/&gt;</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; &lt;/action&gt;</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; <br>
+&nbsp;&nbsp;&nbsp; <span style="color: rgb(51, 204, 0);">&lt;!--
+进入结算中心页面后，点击继续进入此 --&gt;</span><br>
+</span><span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;
+&lt;action path="/shop/newOrderForm"
+type="org.springframework.samples.jpetstore.web.struts.NewOrderFormAction"</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+name="workingOrderForm" scope="session" validate="false"&gt;</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+&lt;forward name="success"
+path="/WEB-INF/jsp/struts/NewOrderForm.jsp"/&gt;</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; &lt;/action&gt;<br>
+<br style="font-family: monospace;">
+</span><span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; <span
+ style="font-weight: bold; color: rgb(51, 204, 0);">&lt;!-- </span></span><br
+ style="font-family: monospace; font-weight: bold; color: rgb(51, 204, 0);">
+<span
+ style="font-family: monospace; font-weight: bold; color: rgb(51, 204, 0);">&nbsp;&nbsp;&nbsp;
+fixed by pprun: 将原先混在一起的逻辑打破成几个小部分，否则在多步向导式提交</span><br
+ style="font-family: monospace; font-weight: bold; color: rgb(51, 204, 0);">
+<span
+ style="font-family: monospace; font-weight: bold; color: rgb(51, 204, 0);">&nbsp;&nbsp;&nbsp;
+页面中的任何一步出错都无理地返回到 NewOrderForm.jsp 页面，而不是真正的出错的页面</span><br
+ style="font-family: monospace; font-weight: bold; color: rgb(51, 204, 0);">
+<span
+ style="font-family: monospace; font-weight: bold; color: rgb(51, 204, 0);">&nbsp;&nbsp;&nbsp;
+--&gt;</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; &lt;!--</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; &lt;action
+path="/shop/newOrder"
+type="org.springframework.samples.jpetstore.web.struts.NewOrderAction"</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+name="workingOrderForm" scope="session" validate="true"
+input="/WEB-INF/jsp/struts/NewOrderForm.jsp"&gt;</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+&lt;forward name="confirm"
+path="/WEB-INF/jsp/struts/ConfirmOrder.jsp"/&gt;</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+&lt;forward name="shipping"
+path="/WEB-INF/jsp/struts/ShippingForm.jsp"/&gt;</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+&lt;forward name="success" path="/WEB-INF/jsp/struts/ViewOrder.jsp"/&gt;</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; &lt;/action&gt;</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; --&gt;<br>
+&nbsp;&nbsp;&nbsp; <br>
+&nbsp;&nbsp;&nbsp; <span
+ style="color: rgb(51, 204, 0); font-weight: bold;">&lt;!--
+填写定单信息的多页向导式页面 --&gt;</span><br>
+&nbsp;&nbsp;&nbsp; <span style="color: rgb(51, 204, 0);">&lt;!--
+当第一页校验失败时，需要跳回填写购物单的第一页 --&gt;</span><br style="font-family: monospace;">
+</span><span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;
+&lt;action path="/shop/newOrderStep1"
+type="org.springframework.samples.jpetstore.web.struts.NewOrderAction"</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+name="workingOrderForm" scope="session" validate="true"
+input="/shop/newOrderForm.do"&gt;</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+&lt;forward name="confirm"
+path="/WEB-INF/jsp/struts/ConfirmOrder.jsp"/&gt;</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+&lt;forward name="shipping"
+path="/WEB-INF/jsp/struts/ShippingForm.jsp"/&gt;</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; &lt;/action&gt;<br>
+<br>
+&nbsp;&nbsp;&nbsp; </span><span
+ style="font-family: monospace; color: rgb(51, 204, 0);">&lt;!--
+(只有页面上填写了将宠物送到不同的地址时，默认为送到当前用户的地址)，才会出现此面。此页校验失败，毫无疑问应该回到这个新地址填写页，而不是整个流
+程的第一页。这就是原版中的BUG所在处，因为它将这个向导性的流程处理放到了一个映射中，所以没法处理这种情况 --&gt;</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; &lt;action
+path="/shop/newOrderStep2"
+type="org.springframework.samples.jpetstore.web.struts.NewOrderAction"</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+name="workingOrderForm" scope="session" validate="true"
+input="/WEB-INF/jsp/struts/ShippingForm.jsp"&gt;</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+&lt;forward name="confirm"
+path="/WEB-INF/jsp/struts/ConfirmOrder.jsp"/&gt;</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; &lt;/action&gt;<br>
+<br>
+&nbsp;&nbsp;&nbsp; </span><span
+ style="font-family: monospace; color: rgb(51, 204, 0);">&lt;!--
+当在最后一步确认时出错，需要跳回填写购物单的第一页 --&gt;</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; &lt;action
+path="/shop/newOrderStep3"
+type="org.springframework.samples.jpetstore.web.struts.NewOrderAction"</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+name="workingOrderForm" scope="session" validate="true"
+input="/WEB-INF/jsp/struts/NewOrderForm.jsp"&gt;</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+&lt;forward name="success" path="/WEB-INF/jsp/struts/ViewOrder.jsp"/&gt;</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; &lt;/action&gt;</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; &lt;!-- fixed
+end --&gt;</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; <br
+ style="font-family: monospace;">
+</span><span style="font-family: monospace;"></span><span
+ style="font-family: monospace;"></span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; &lt;action
+path="/shop/removeItemFromCart"
+type="org.springframework.samples.jpetstore.web.struts.RemoveItemFromCartAction"</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+name="cartForm" scope="session" validate="false"&gt;</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+&lt;forward name="success" path="/WEB-INF/jsp/struts/Cart.jsp"/&gt;</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; &lt;/action&gt;</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; &lt;action
+path="/shop/searchProducts"
+type="org.springframework.samples.jpetstore.web.struts.SearchProductsAction"</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+name="emptyForm" scope="session" validate="false"&gt;</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+&lt;forward name="success"
+path="/WEB-INF/jsp/struts/SearchProducts.jsp"/&gt;</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; &lt;/action&gt;</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; &lt;action
+path="/shop/signon"
+type="org.springframework.samples.jpetstore.web.struts.SignonAction"</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+name="accountForm" scope="session" validate="false"&gt;</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+&lt;forward name="success" path="/shop/index.do"/&gt;</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; &lt;/action&gt;</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; &lt;action
+path="/shop/signonForm"
+type="org.springframework.samples.jpetstore.web.struts.DoNothingAction"</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+validate="false"&gt;</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+&lt;forward name="success"
+path="/WEB-INF/jsp/struts/SignonForm.jsp"/&gt;</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; &lt;/action&gt;</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; &lt;action
+path="/shop/updateCartQuantities"
+type="org.springframework.samples.jpetstore.web.struts.UpdateCartQuantitiesAction"</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+name="cartForm" scope="session" validate="false"&gt;</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+&lt;forward name="success" path="/WEB-INF/jsp/struts/Cart.jsp"/&gt;</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; &lt;/action&gt;</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; &lt;action
+path="/shop/viewCart"
+type="org.springframework.samples.jpetstore.web.struts.ViewCartAction"</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+name="cartForm" scope="session" validate="false"&gt;</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+&lt;forward name="success" path="/WEB-INF/jsp/struts/Cart.jsp"/&gt;</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; &lt;/action&gt;</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; &lt;action
+path="/shop/viewCategory"
+type="org.springframework.samples.jpetstore.web.struts.ViewCategoryAction"</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+name="emptyForm" scope="session" validate="true"
+input="/WEB-INF/jsp/struts/index.jsp"&gt;</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+&lt;forward name="success" path="/WEB-INF/jsp/struts/Category.jsp"/&gt;</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; &lt;/action&gt;</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; &lt;action
+path="/shop/viewItem"
+type="org.springframework.samples.jpetstore.web.struts.ViewItemAction"</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+name="emptyForm" scope="session" validate="true"
+input="/WEB-INF/jsp/struts/Product.jsp"&gt;</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+&lt;forward name="success" path="/WEB-INF/jsp/struts/Item.jsp"/&gt;</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; &lt;/action&gt;</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; &lt;action
+path="/shop/viewOrder"
+type="org.springframework.samples.jpetstore.web.struts.ViewOrderAction"</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+name="accountForm" scope="session" validate="false"&gt;</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+&lt;forward name="success" path="/WEB-INF/jsp/struts/ViewOrder.jsp"/&gt;</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; &lt;/action&gt;</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; &lt;action
+path="/shop/viewProduct"
+type="org.springframework.samples.jpetstore.web.struts.ViewProductAction"</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+name="emptyForm" scope="session" validate="true"
+input="/WEB-INF/jsp/struts/index.jsp"&gt;</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+&lt;forward name="success" path="/WEB-INF/jsp/struts/Product.jsp"/&gt;</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; &lt;/action&gt;</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp; &lt;/action-mappings&gt;</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp; </span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&lt;/struts-config&gt;</span><br
+ style="font-family: monospace;">
+<br>
+<br>
+<span style="font-weight: bold;">说明：</span><br>
+<br>
+1. 从FormBean 的数量和每个使用了FormBean的 Action 映射可知，这里存在 FormBean
+复用问题，即用一个来服务多个 Action, 这种方式可以大大减少 FormBean 的数量，但是，在 Action
+中的逻辑变得复杂了。因为在 FormBean 中包括了所有 Action 的需求，而在Action
+中不得不排除它所不需要的元素的干扰。这样使代码看起来很混乱。<br>
+<br>
+2. 有了全局声明，在 Action 的代码中就可以随时发出 mapping.findForward("failure");
+之类的代码，而不需要在对应的 Action 映射中配置该 &lt;forward&gt; 子元素.<br>
+<br>
+3. 注释掉的 Action 映射是为了修复一个BUG：<span style="font-family: monospace;"><br>
+</span><span style="font-family: monospace;"></span>&nbsp;
+因为在涉及到定单提交时，采用的是多页提交(也就向导页面)方式，即收集的信息是从连续多个页面中获得的，而不是普通的从一个页面中得到的。这样就涉及
+到，当其中的一个页面出现校验失败时，将要将流控跳转到出错的页面，通过 <br>
+将原先混在一起的逻辑打破成几个小部分，否则在多步向导式提交<br>
+&nbsp;&nbsp;&nbsp; 页面中的任何一步出错都无理地返回到 NewOrderForm.jsp 页面，而不是真正的出错的页面,
+请看相应的映射元素的注释说明。<br>
+<br>
+4. 为了保持连贯性，关于每个映射元素的每个属性，我们重复 <a
+ href="http://pprun.blogspot.com/2007/05/hibernate-jpetstore_31.html">Hibernate
+JPetstore 系列之三: 控制层技术</a> 中的 ActionForm &lt;-- struts-config.xml --&gt;
+Action 部分的内容：<br>
+1. path=<font style="font-weight: bold;">/shop/editAccount</font><br>
+所有要去住 /shop/editAccount （严格地讲，如果按照Struts 的方言是 /shop/editAccount.do)<br>
+的请求，都要遵循这里的配置<br>
+<br>
+2. <font style="font-weight: bold;">name="workingAccountForm"</font><br>
+都将绑定 workingAccountForm ，注意 form-bean 在 Action 中引用是通过 name<br>
+属性来引用的，它是在一开始定义的: &lt;form-bean name="workingAccountForm"<br>
+type="org.springframework.samples.jpetstore.web.struts.AccountActionForm"/&gt;<br>
+<br>
+3. <font style="font-weight: bold;">scope="session"</font> 该 bean<br>
+将在整个会话其间始终有效 ，但注意这个配置是多余的，默认就是 session 上下文的，反而如果 bean 只在 request<br>
+文时，才需要明确地声明。<br>
+<br>
+4. validate="true" 将对表单的输入调用 form-bean 的 validate 方法。但我们发现在<br>
+AccountActionForm.java 中，只有 doValidate(...) 方法，并没有<br>
+validate()方法，但细心的话，应该发现了，和所有的Action 都是从BaseAction 中派生而来一样，所有的<br>
+ActionForm 中都是从一个基类 BaseActionForm.java 中派生下来。其中定义了所有 formbean<br>
+都需要的东西，对于校验错误的处理。其中就是 validate(...) 方法，并在其中调用了 doValidate() 方法，而每个<br>
+BaseActionForm 的子类只要override 这个 doValidate() 方法，如果 validate="true"<br>
+声明了的话，那么子类中的 doValidate() 方法将会被调用。这是多态性的表现。<br>
+<br>
+5. input="..." 一般来讲，一个表单在校验失败后都需要回去重纠正错误的输出项，所以我们通过这个值来告诉 Struts<br>
+该回到哪去纠错. <br>
+<br>
+<h3>FormBean 类层次</h3>
+与 Action 类一样，FormBean 也基于类的继承关系设计的，这样子类 FormBean 只需实现父类 FormBean
+指定的约束，所有的子类都复用父类中的功能并按照这种设计约束工作。<br>
+<br>
+<h4>基类 BaseActionForm</h4>
+该类本身又是从 抽象类 org.apache.struts.action.ActionForm 派生而来，所以应用中的所有 FormBean
+只要从 BaseActionForm 派生即可：<br>
+<br>
+<span style="font-family: monospace;">public class BaseActionForm
+extends ActionForm {<br>
+&nbsp;&nbsp;&nbsp; <span style="color: rgb(51, 204, 0);">/**</span><br
+ style="color: rgb(51, 204, 0);">
+<span style="color: rgb(51, 204, 0);">&nbsp;&nbsp;&nbsp;&nbsp; *
+此乃最原始的错误处理方法，将所有错误信息加入到一个列表后，然后存入到</span><br
+ style="color: rgb(51, 204, 0);">
+<span style="color: rgb(51, 204, 0);">&nbsp;&nbsp;&nbsp;&nbsp; *
+Servlet 请求属性中供页面使用.</span><br style="color: rgb(51, 204, 0);">
+<span style="color: rgb(51, 204, 0);">&nbsp;&nbsp;&nbsp;&nbsp; *
+更现代的方法是使用 Struts1.1 之后的 commons-validator,关于这个功能在</span><br
+ style="color: rgb(51, 204, 0);">
+<span style="color: rgb(51, 204, 0);">&nbsp;&nbsp;&nbsp;&nbsp; * 各种关于
+Struts 的参考或书籍中都有介绍。</span><br style="color: rgb(51, 204, 0);">
+<span style="color: rgb(51, 204, 0);">&nbsp;&nbsp;&nbsp;&nbsp; *</span><br
+ style="color: rgb(51, 204, 0);">
+<span style="color: rgb(51, 204, 0);">&nbsp;&nbsp;&nbsp;&nbsp; *
+是否为调用此方法是通过属性 <span style="color: rgb(102, 0, 204);"><span
+ style="color: rgb(255, 0, 0);">validate</span> </span>来控制的，如：</span><br
+ style="color: rgb(51, 204, 0);">
+<span style="color: rgb(51, 204, 0);">&nbsp;&nbsp;&nbsp;&nbsp; *
+&lt;action path="/shop/signon"
+type="org.springframework.samples.jpetstore.web.struts.SignonAction"</span><br
+ style="color: rgb(51, 204, 0);">
+<span style="color: rgb(51, 204, 0);">&nbsp;&nbsp;&nbsp;&nbsp; *
+name="accountForm" scope="session" <span style="color: rgb(255, 0, 0);">validate="false"</span>&gt;</span><br
+ style="color: rgb(51, 204, 0);">
+<span style="color: rgb(51, 204, 0);">&nbsp;&nbsp;&nbsp;&nbsp; *
+是不会调用的，因为 validate="false".</span><br style="color: rgb(51, 204, 0);">
+<span style="color: rgb(51, 204, 0);">&nbsp;&nbsp;&nbsp;&nbsp; */</span><br>
+&nbsp;&nbsp;&nbsp; public ActionErrors validate(ActionMapping mapping,
+HttpServletRequest request) {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; ActionErrors errorMessages =
+null;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span
+ style="color: rgb(51, 204, 0);">// 整个系统的错误信息列表，通过调用
+doValidate(mapping, request, errorList);</span><br
+ style="color: rgb(51, 204, 0);">
+<span style="color: rgb(51, 204, 0);">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+// addErrorIfStringEmpty 会将错误信息加入到列表当中，并且它被存入了请求属性当中.</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; ArrayList errorList = new
+ArrayList();<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; doValidate(mapping, request,
+errorList);<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+request.setAttribute("errors", errorList);<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; if (!errorList.isEmpty()) {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+errorMessages = new org.apache.struts.action.ActionErrors();<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+errorMessages.add(ActionErrors.GLOBAL_MESSAGE, new
+ActionMessage("global.error"));<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; }<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; return errorMessages;<br>
+&nbsp;&nbsp;&nbsp; }<br>
+&nbsp;&nbsp;&nbsp; <br>
+&nbsp;&nbsp;&nbsp; <span style="color: rgb(51, 204, 0);">/**</span><br
+ style="color: rgb(51, 204, 0);">
+<span style="color: rgb(51, 204, 0);">&nbsp;&nbsp;&nbsp;&nbsp; *
+此方法被设计为供子类覆盖的(overriding).</span><br style="color: rgb(51, 204, 0);">
+<span style="color: rgb(51, 204, 0);">&nbsp;&nbsp;&nbsp;&nbsp; *
+任何子类实现了这个方法，将自动被上面的 validate 方法调用。</span><br
+ style="color: rgb(51, 204, 0);">
+<span style="color: rgb(51, 204, 0);">&nbsp;&nbsp;&nbsp;&nbsp; *
+这也是设计模式的一种，基类提供了模板，子类将其实现。</span><br style="color: rgb(51, 204, 0);">
+<span style="color: rgb(51, 204, 0);">&nbsp;&nbsp;&nbsp;&nbsp; * @param
+mapping</span><br style="color: rgb(51, 204, 0);">
+<span style="color: rgb(51, 204, 0);">&nbsp;&nbsp;&nbsp;&nbsp; * @param
+request</span><br style="color: rgb(51, 204, 0);">
+<span style="color: rgb(51, 204, 0);">&nbsp;&nbsp;&nbsp;&nbsp; * @param
+errors</span><br style="color: rgb(51, 204, 0);">
+<span style="color: rgb(51, 204, 0);">&nbsp;&nbsp;&nbsp;&nbsp; */</span><br>
+&nbsp;&nbsp;&nbsp; public void doValidate(ActionMapping mapping,
+HttpServletRequest request, List errors) {<br>
+&nbsp;&nbsp;&nbsp; }<br>
+&nbsp;&nbsp;&nbsp; <br>
+&nbsp;&nbsp;&nbsp; <span style="color: rgb(51, 204, 0);">/**</span><br
+ style="color: rgb(51, 204, 0);">
+<span style="color: rgb(51, 204, 0);">&nbsp;&nbsp;&nbsp;&nbsp; *
+此辅助方法被用来给定的页面输入内容是否为空，如果是空的话，将显示给定的出错信息。</span><br
+ style="color: rgb(51, 204, 0);">
+<span style="color: rgb(51, 204, 0);">&nbsp;&nbsp;&nbsp;&nbsp; *</span><br
+ style="color: rgb(51, 204, 0);">
+<span style="color: rgb(51, 204, 0);">&nbsp;&nbsp;&nbsp;&nbsp; * @param
+errors 错误信息列表</span><br style="color: rgb(51, 204, 0);">
+<span style="color: rgb(51, 204, 0);">&nbsp;&nbsp;&nbsp;&nbsp; * @param
+message 当 value 为空时，将显示这个错误信息</span><br style="color: rgb(51, 204, 0);">
+<span style="color: rgb(51, 204, 0);">&nbsp;&nbsp;&nbsp;&nbsp; * @param
+value 页面元素对应的值</span><br style="color: rgb(51, 204, 0);">
+<span style="color: rgb(51, 204, 0);">&nbsp;&nbsp;&nbsp;&nbsp; */</span><br>
+&nbsp;&nbsp;&nbsp; protected void addErrorIfStringEmpty(List errors,
+String message, String value) {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; if (value == null ||
+value.trim().length() &lt; 1) {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+errors.add(message);<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; }<br>
+&nbsp;&nbsp;&nbsp; }<br>
+}</span><span style="font-family: monospace;"></span><br>
+<br>
+<br>
+<h4>BaseActionForm 子类实例 AccountActionForm</h4>
+我仅介绍一个子类 <span style="font-family: monospace;">AccountActionForm :</span><br>
+<br>
+<span style="font-family: monospace;">public class AccountActionForm
+extends BaseActionForm {</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; </span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; <span
+ style="color: rgb(51, 204, 0);">/** 用于检验的常量定义，因为在新建帐户与修改帐户时检验逻辑是不一样的。</span></span><br
+ style="font-family: monospace; color: rgb(51, 204, 0);">
+<span style="font-family: monospace; color: rgb(51, 204, 0);">&nbsp;&nbsp;&nbsp;&nbsp;
+* 至少在修改帐户时，帐户名是已经存在了 */</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; public static
+final String VALIDATE_EDIT_ACCOUNT = "editAccount";</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; public static
+final String VALIDATE_NEW_ACCOUNT = "newAccount";</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; </span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; <span
+ style="color: rgb(51, 204, 0);">/** 用于存贮用户的首先语言的列表 */</span></span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; private static
+final ArrayList LANGUAGE_LIST = new ArrayList();</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; </span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; <span
+ style="color: rgb(51, 204, 0);">/* Private Fields */</span></span><br
+ style="font-family: monospace; color: rgb(51, 204, 0);">
+<span style="font-family: monospace; color: rgb(51, 204, 0);">&nbsp;&nbsp;&nbsp;
+// 看起来好象与 Account 中的成员重复了，这是因为此 Form 被多个页面重复使用的</span><br
+ style="font-family: monospace; color: rgb(51, 204, 0);">
+<span style="font-family: monospace; color: rgb(51, 204, 0);">&nbsp;&nbsp;&nbsp;
+// 结果，因为在登录页面时，那时根本不存在 Account, 所以不可能通过</span><br
+ style="font-family: monospace; color: rgb(51, 204, 0);">
+<span style="font-family: monospace; color: rgb(51, 204, 0);">&nbsp;&nbsp;&nbsp;
+// account.getUsername() 和 account.getPassword() 来得到用户的输入值的，</span><br
+ style="font-family: monospace; color: rgb(51, 204, 0);">
+<span style="font-family: monospace; color: rgb(51, 204, 0);">&nbsp;&nbsp;&nbsp;
+</span><br style="font-family: monospace; color: rgb(51, 204, 0);">
+<span style="font-family: monospace; color: rgb(51, 204, 0);">&nbsp;&nbsp;&nbsp;
+// 下面两项即是在登录当时收集输入 信息，</span><br
+ style="font-family: monospace; color: rgb(51, 204, 0);">
+<span style="font-family: monospace; color: rgb(51, 204, 0);">&nbsp;&nbsp;&nbsp;
+// 其它情况（比如修改，新建帐户时）都是间接使用了 Account 中的成员，因当时都</span><br
+ style="font-family: monospace; color: rgb(51, 204, 0);">
+<span style="font-family: monospace; color: rgb(51, 204, 0);">&nbsp;&nbsp;&nbsp;
+// 已经在 session 中存放了一个 Account 的实例</span><br
+ style="font-family: monospace; color: rgb(51, 204, 0);">
+<span style="font-family: monospace; color: rgb(51, 204, 0);">&nbsp;&nbsp;&nbsp;
+</span><br style="font-family: monospace; color: rgb(51, 204, 0);">
+<span style="font-family: monospace; color: rgb(51, 204, 0);">&nbsp;&nbsp;&nbsp;
+// 所以重用是有代价的（使代码不那么直观了，如果是一个页面表单 Form 对应一个</span><br
+ style="font-family: monospace; color: rgb(51, 204, 0);">
+<span style="font-family: monospace; color: rgb(51, 204, 0);">&nbsp;&nbsp;&nbsp;
+// FormBean 的话，以下成员与页面中的输入元素是一一对应的）</span><br
+ style="font-family: monospace; color: rgb(51, 204, 0);">
+<span style="font-family: monospace; color: rgb(51, 204, 0);">&nbsp;&nbsp;&nbsp;
+</span><br style="font-family: monospace; color: rgb(51, 204, 0);">
+<span style="font-family: monospace; color: rgb(51, 204, 0);">&nbsp;&nbsp;&nbsp;
+// 供登录页面使用的 元素</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; private String
+username;</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; private String
+password;</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; </span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; <span
+ style="color: rgb(51, 204, 0);">// 登录后，与帐户相关的元素</span></span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; private String
+repeatedPassword;</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; private List
+languages;</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; private List
+categories;</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; </span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; <span
+ style="color: rgb(51, 204, 0);">/**</span></span><br
+ style="font-family: monospace; color: rgb(51, 204, 0);">
+<span style="font-family: monospace; color: rgb(51, 204, 0);">&nbsp;&nbsp;&nbsp;&nbsp;
+* 这个成员的值是通过页面隐藏元素传入的：</span><br
+ style="font-family: monospace; color: rgb(51, 204, 0);">
+<span style="font-family: monospace; color: rgb(51, 204, 0);">&nbsp;&nbsp;&nbsp;&nbsp;
+* <span style="color: rgb(51, 51, 255);">NewAccountForm.jsp 中:
+&lt;html:hidden name="workingAccountForm" property="validate"
+value="newAccount"/&gt;</span></span><br
+ style="font-family: monospace; color: rgb(51, 51, 255);">
+<span style="font-family: monospace; color: rgb(51, 51, 255);">&nbsp;&nbsp;&nbsp;&nbsp;
+* EditAccountForm.jsp 中:&lt;html:hidden name="workingAccountForm"
+property="validate" value="editAccount" /&gt;</span><br
+ style="font-family: monospace; color: rgb(51, 204, 0);">
+<span style="font-family: monospace; color: rgb(51, 204, 0);">&nbsp;&nbsp;&nbsp;&nbsp;
+*/</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; private String
+validate;</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; </span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; <span
+ style="color: rgb(51, 204, 0);">/**</span></span><br
+ style="font-family: monospace; color: rgb(51, 204, 0);">
+<span style="font-family: monospace; color: rgb(51, 204, 0);">&nbsp;&nbsp;&nbsp;&nbsp;
+* 用来记住用户是从哪里跳转过来的，因为准备对购物车进行结算时，如果没有登录</span><br
+ style="font-family: monospace; color: rgb(51, 204, 0);">
+<span style="font-family: monospace; color: rgb(51, 204, 0);">&nbsp;&nbsp;&nbsp;&nbsp;
+* 的话，首先将结算中心页面的地址存入此成员中，登录成功后再跳转过去。</span><br
+ style="font-family: monospace; color: rgb(51, 204, 0);">
+<span style="font-family: monospace; color: rgb(51, 204, 0);">&nbsp;&nbsp;&nbsp;&nbsp;
+* 如果没有这样一步操作的话，那么就会出现讨厌的将你送回首页面(也就是程序</span><br
+ style="font-family: monospace; color: rgb(51, 204, 0);">
+<span style="font-family: monospace; color: rgb(51, 204, 0);">&nbsp;&nbsp;&nbsp;&nbsp;
+* 的逻辑流程打扰了用户的进程，<span style="color: rgb(255, 0, 0);">这是最应当避免的</span>。)</span><br
+ style="font-family: monospace; color: rgb(51, 204, 0);">
+<span style="font-family: monospace; color: rgb(51, 204, 0);">&nbsp;&nbsp;&nbsp;&nbsp;
+*/</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; private String
+forwardAction;</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; </span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; <span
+ style="color: rgb(51, 204, 0);">/**</span></span><br
+ style="font-family: monospace; color: rgb(51, 204, 0);">
+<span style="font-family: monospace; color: rgb(51, 204, 0);">&nbsp;&nbsp;&nbsp;&nbsp;
+* 所有的帐号信息放在这个 POJO 中</span><br
+ style="font-family: monospace; color: rgb(51, 204, 0);">
+<span style="font-family: monospace; color: rgb(51, 204, 0);">&nbsp;&nbsp;&nbsp;&nbsp;
+*/</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; private
+Account account;</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; </span><span
+ style="font-family: monospace;"></span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; <span
+ style="color: rgb(51, 204, 0);">/**</span></span><br
+ style="font-family: monospace; color: rgb(51, 204, 0);">
+<span style="font-family: monospace; color: rgb(51, 204, 0);">&nbsp;&nbsp;&nbsp;&nbsp;
+* 用于显示标语，当你在用户信息页面选择显示标语时</span><br
+ style="font-family: monospace; color: rgb(51, 204, 0);">
+<span style="font-family: monospace; color: rgb(51, 204, 0);">&nbsp;&nbsp;&nbsp;&nbsp;
+*/</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; private String
+bannerName;</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; </span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; <span
+ style="color: rgb(51, 204, 0);">/**</span></span><br
+ style="font-family: monospace; color: rgb(51, 204, 0);">
+<span style="font-family: monospace; color: rgb(51, 204, 0);">&nbsp;&nbsp;&nbsp;&nbsp;
+* 用于显示根据用户的喜好被推荐的宠物列表,当你选择了显示该列表时。</span><br
+ style="font-family: monospace; color: rgb(51, 204, 0);">
+<span style="font-family: monospace; color: rgb(51, 204, 0);">&nbsp;&nbsp;&nbsp;&nbsp;
+*/</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; private
+PagedListHolder myList;</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; </span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; <span
+ style="color: rgb(51, 204, 0);">/**</span></span><br
+ style="font-family: monospace; color: rgb(51, 204, 0);">
+<span style="font-family: monospace; color: rgb(51, 204, 0);">&nbsp;&nbsp;&nbsp;&nbsp;
+* 用户最喜欢的宠物类别</span><br
+ style="font-family: monospace; color: rgb(51, 204, 0);">
+<span style="font-family: monospace; color: rgb(51, 204, 0);">&nbsp;&nbsp;&nbsp;&nbsp;
+*/</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; private String
+favCategoryName;</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; </span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; /* Static
+Initializer */</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; </span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; static {</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+LANGUAGE_LIST.add("english");</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+LANGUAGE_LIST.add("japanese");</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; }</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; </span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; public
+AccountActionForm() {</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+languages = LANGUAGE_LIST;</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; }</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; </span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; public
+PagedListHolder getMyList() {</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+return myList;</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; }</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; public void
+setMyList(PagedListHolder myList) {</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+this.myList = myList;</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; }</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; </span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; public String
+getForwardAction() {</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+return forwardAction;</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; }</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; public void
+setForwardAction(String forwardAction) {</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+this.forwardAction = forwardAction;</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; }</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; </span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; public String
+getUsername() {</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+return username;</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; }</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; public void
+setUsername(String username) {</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+this.username = username;</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; }</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; </span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; public String
+getPassword() {</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+return password;</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; }</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; public void
+setPassword(String password) {</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+this.password = password;</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; }</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; </span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; public String
+getRepeatedPassword() {</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+return repeatedPassword;</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; }</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; public void
+setRepeatedPassword(String repeatedPassword) {</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+this.repeatedPassword = repeatedPassword;</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; }</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; </span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; public Account
+getAccount() {</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+return account;</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; }</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; </span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; public void
+setAccount(Account account) {</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+this.account = account;</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; }</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; </span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; public List
+getLanguages() {</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+return languages;</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; }</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; public void
+setLanguages(List languages) {</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+this.languages = languages;</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; }</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; </span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; public List
+getCategories() {</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+return categories;</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; }</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; public void
+setCategories(List categories) {</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+this.categories = categories;</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; }</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; </span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; public String
+getBannerName() {</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+return bannerName;</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; }</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; </span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; public void
+setBannerName(String bannerName) {</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+this.bannerName = bannerName;</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; }</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; </span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; public String
+getFavCategoryName() {</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+return favCategoryName;</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; }</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; </span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; public void
+setFavCategoryName(String favCategoryName) {</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+this.favCategoryName = favCategoryName;</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; }</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; </span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; public String
+getValidate() {</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+return validate;</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; }</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; public void
+setValidate(String validate) {</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+this.validate = validate;</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; }</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; </span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; <span
+ style="color: rgb(51, 204, 0);">/**</span></span><br
+ style="font-family: monospace; color: rgb(51, 204, 0);">
+<span style="font-family: monospace; color: rgb(51, 204, 0);">&nbsp;&nbsp;&nbsp;&nbsp;
+* 覆盖父类中的方法，用于输入校验</span><br
+ style="font-family: monospace; color: rgb(51, 204, 0);">
+<span style="font-family: monospace; color: rgb(51, 204, 0);">&nbsp;&nbsp;&nbsp;&nbsp;
+*/</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; public void
+doValidate(ActionMapping mapping,</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+HttpServletRequest request, List errors) {</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+if (validate != null) {</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+if (VALIDATE_EDIT_ACCOUNT.equals(validate) ||</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+VALIDATE_NEW_ACCOUNT.equals(validate)) {</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+if (VALIDATE_NEW_ACCOUNT.equals(validate)) {</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+<span style="color: rgb(51, 204, 0);">// 是新建帐户时，需要额外的校验</span></span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+account.setStatus("OK");</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+addErrorIfStringEmpty(errors, "User ID is required.",</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+account.getUsername());</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+if (account.getPassword() == null ||</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+account.getPassword().length() &lt; 1 ||</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+!account.getPassword().equals(repeatedPassword)) {</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+errors.add("Passwords did not match or were not provided.&nbsp; " +</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+"Matching passwords are required.");</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+}</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+}</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+if (account.getPassword() != null &amp;&amp;</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+account.getPassword().length() &gt; 0) {</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+if (!account.getPassword().equals(repeatedPassword)) {</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+errors.add("Passwords did not match.");</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+}</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+}</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+addErrorIfStringEmpty(errors, "First name is required.",</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+this.account.getFirstname());</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+addErrorIfStringEmpty(errors, "Last name is required.",</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+this.account.getLastname());</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+addErrorIfStringEmpty(errors, "Email address is required.",</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+this.account.getEmail());</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+addErrorIfStringEmpty(errors, "Phone number is required.",</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+this.account.getPhone());</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+addErrorIfStringEmpty(errors, "Address (1) is required.",</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+this.account.getUserAddr().getAddr1());</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+addErrorIfStringEmpty(errors, "City is required.",</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+this.account.getUserAddr().getCity());</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+addErrorIfStringEmpty(errors, "State is required.",</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+this.account.getUserAddr().getState());</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+addErrorIfStringEmpty(errors, "ZIP is required.",</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+this.account.getUserAddr().getZipcode());</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+addErrorIfStringEmpty(errors, "Country is required.",</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+this.account.getUserAddr().getCountry());</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+}</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+}</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; }</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; </span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; <span
+ style="color: rgb(51, 204, 0);">/**</span></span><br
+ style="font-family: monospace; color: rgb(51, 204, 0);">
+<span style="font-family: monospace; color: rgb(51, 204, 0);">&nbsp;&nbsp;&nbsp;&nbsp;
+* 此方法是一个很重要的方法，我们看看基类中对该方法的描述:</span><br
+ style="font-family: monospace; color: rgb(51, 204, 0);">
+<span style="font-family: monospace; color: rgb(51, 204, 0);">&nbsp;&nbsp;&nbsp;&nbsp;
+*</span><br style="font-family: monospace; color: rgb(51, 204, 0);">
+<span style="font-family: monospace; color: rgb(51, 204, 0);">&nbsp;&nbsp;&nbsp;&nbsp;
+* Reset bean properties to their default state, as needed.</span><br
+ style="font-family: monospace; color: rgb(51, 204, 0);">
+<span style="font-family: monospace; color: rgb(51, 204, 0);">&nbsp;&nbsp;&nbsp;&nbsp;
+* This method is called before the properties are repopulated by the
+controller.</span><br
+ style="font-family: monospace; color: rgb(51, 204, 0);">
+<span style="font-family: monospace; color: rgb(51, 204, 0);">&nbsp;&nbsp;&nbsp;&nbsp;
+* 在需要时，复位 Bean 的属性值，此方法是在控制器重新组装Bean的属性值之前调用的。</span><br
+ style="font-family: monospace; color: rgb(51, 204, 0);">
+<span style="font-family: monospace; color: rgb(51, 204, 0);">&nbsp;&nbsp;&nbsp;&nbsp;
+*</span><br style="font-family: monospace; color: rgb(51, 204, 0);">
+<span style="font-family: monospace; color: rgb(51, 204, 0);">&nbsp;&nbsp;&nbsp;&nbsp;
+* The default implementation does nothing. In practice, the only
+properties</span><br
+ style="font-family: monospace; color: rgb(51, 204, 0);">
+<span style="font-family: monospace; color: rgb(51, 204, 0);">&nbsp;&nbsp;&nbsp;&nbsp;
+* that need to be reset are those which represent checkboxes on a</span><br
+ style="font-family: monospace; color: rgb(51, 204, 0);">
+<span style="font-family: monospace; color: rgb(51, 204, 0);">&nbsp;&nbsp;&nbsp;&nbsp;
+* session-scoped form. Otherwise, properties can be given initial values</span><br
+ style="font-family: monospace; color: rgb(51, 204, 0);">
+<span style="font-family: monospace; color: rgb(51, 204, 0);">&nbsp;&nbsp;&nbsp;&nbsp;
+* where the field is declared.</span><br
+ style="font-family: monospace; color: rgb(51, 204, 0);">
+<span style="font-family: monospace; color: rgb(51, 204, 0);">&nbsp;&nbsp;&nbsp;&nbsp;
+* 默认的实现，并没有做任何事。实际上，唯一需要重置的属性是那些基于</span><br
+ style="font-family: monospace; color: rgb(51, 204, 0);">
+<span style="font-family: monospace; color: rgb(51, 204, 0);">&nbsp;&nbsp;&nbsp;&nbsp;
+* session 作用域的复选框页面元素。否则这些元素将使用页面上声明的默认值。</span><br
+ style="font-family: monospace; color: rgb(51, 204, 0);">
+<span style="font-family: monospace; color: rgb(51, 204, 0);">&nbsp;&nbsp;&nbsp;&nbsp;
+* 是勾选还是未勾选。</span><br
+ style="font-family: monospace; color: rgb(51, 204, 0);">
+<span style="font-family: monospace; color: rgb(51, 204, 0);">&nbsp;&nbsp;&nbsp;&nbsp;
+*</span><br style="font-family: monospace; color: rgb(51, 204, 0);">
+<span style="font-family: monospace; color: rgb(51, 204, 0);">&nbsp;&nbsp;&nbsp;&nbsp;
+* If the form is stored in session-scope so that values can be collected</span><br
+ style="font-family: monospace; color: rgb(51, 204, 0);">
+<span style="font-family: monospace; color: rgb(51, 204, 0);">&nbsp;&nbsp;&nbsp;&nbsp;
+* over multiple requests (a "wizard"), you must be very careful of
+which properties,</span><br
+ style="font-family: monospace; color: rgb(51, 204, 0);">
+<span style="font-family: monospace; color: rgb(51, 204, 0);">&nbsp;&nbsp;&nbsp;&nbsp;
+* if any, are reset. As mentioned, session-scope checkboxes must be
+reset to</span><br
+ style="font-family: monospace; color: rgb(51, 204, 0);">
+<span style="font-family: monospace; color: rgb(51, 204, 0);">&nbsp;&nbsp;&nbsp;&nbsp;
+* false for any page where this property is set. This is because the
+client</span><br style="font-family: monospace; color: rgb(51, 204, 0);">
+<span style="font-family: monospace; color: rgb(51, 204, 0);">&nbsp;&nbsp;&nbsp;&nbsp;
+* does not submit a checkbox value when it is clear (false).</span><br
+ style="font-family: monospace; color: rgb(51, 204, 0);">
+<span style="font-family: monospace; color: rgb(51, 204, 0);">&nbsp;&nbsp;&nbsp;&nbsp;
+* If a session-scoped checkbox is not proactively reset, it can never
+be set to false.</span><br
+ style="font-family: monospace; color: rgb(51, 204, 0);">
+<span style="font-family: monospace; color: rgb(51, 204, 0);">&nbsp;&nbsp;&nbsp;&nbsp;
+* 假如表单是存贮在 Session 作用域中(如：</span><br
+ style="font-family: monospace; color: rgb(51, 204, 0);">
+<span style="font-family: monospace; color: rgb(51, 204, 0);">&nbsp;&nbsp;&nbsp;&nbsp;
+* <span style="color: rgb(102, 51, 255);">&lt;action
+path="/shop/signon"
+type="org.springframework.samples.jpetstore.web.struts.SignonAction"</span></span><br
+ style="font-family: monospace; color: rgb(102, 51, 255);">
+<span style="font-family: monospace; color: rgb(102, 51, 255);">&nbsp;&nbsp;&nbsp;&nbsp;
+* name="accountForm" <span style="color: rgb(255, 0, 0);">scope="session"</span>
+validate="false"&gt;</span><br
+ style="font-family: monospace; color: rgb(51, 204, 0);">
+<span style="font-family: monospace; color: rgb(51, 204, 0);">&nbsp;&nbsp;&nbsp;&nbsp;
+* 即声明为 session 范围的 formBean)的话，表单元素的值可以在多个请求(即多页向导性页面)</span><br
+ style="font-family: monospace; color: rgb(51, 204, 0);">
+<span style="font-family: monospace; color: rgb(51, 204, 0);">&nbsp;&nbsp;&nbsp;&nbsp;
+* 中被收集，此时必须小心对等哪些输入域必须重置。象我们前面所述，session</span><br
+ style="font-family: monospace; color: rgb(51, 204, 0);">
+<span style="font-family: monospace; color: rgb(51, 204, 0);">&nbsp;&nbsp;&nbsp;&nbsp;
+* 作用域范围内的 checkbox(复选按钮)，在为它们设置值之前必须重置为 false，</span><br
+ style="font-family: monospace; color: rgb(51, 204, 0);">
+<span style="font-family: monospace; color: rgb(51, 204, 0);">&nbsp;&nbsp;&nbsp;&nbsp;
+* 因为客户端(即浏览器)在复选按钮未被勾选时并不会发送任何值到服务器端。(否则，</span><br
+ style="font-family: monospace; color: rgb(51, 204, 0);">
+<span style="font-family: monospace; color: rgb(51, 204, 0);">&nbsp;&nbsp;&nbsp;&nbsp;
+* 就出现这样的问题：如果之前该复选按钮是勾选状态，并且用户请求这一页面</span><br
+ style="font-family: monospace; color: rgb(51, 204, 0);">
+<span style="font-family: monospace; color: rgb(51, 204, 0);">&nbsp;&nbsp;&nbsp;&nbsp;
+* 该按钮显示为勾选状态，在后续的操作中，用户取消选中状态。但是因为 checkbox</span><br
+ style="font-family: monospace; color: rgb(51, 204, 0);">
+<span style="font-family: monospace; color: rgb(51, 204, 0);">&nbsp;&nbsp;&nbsp;&nbsp;
+* 在取消选中状态后，浏览器并不发送任何关于这个控件的信息，但 ActionForm 中</span><br
+ style="font-family: monospace; color: rgb(51, 204, 0);">
+<span style="font-family: monospace; color: rgb(51, 204, 0);">&nbsp;&nbsp;&nbsp;&nbsp;
+* 要改变控制的状态，必须比较浏览器传上来的状态和当前状态，但因为浏览器并未</span><br
+ style="font-family: monospace; color: rgb(51, 204, 0);">
+<span style="font-family: monospace; color: rgb(51, 204, 0);">&nbsp;&nbsp;&nbsp;&nbsp;
+* 告知它，所以 ActionForm 认为这个控件的状态并未改变。因为从这时开始，无论</span><br
+ style="font-family: monospace; color: rgb(51, 204, 0);">
+<span style="font-family: monospace; color: rgb(51, 204, 0);">&nbsp;&nbsp;&nbsp;&nbsp;
+* 用户怎么做，<span style="color: rgb(255, 0, 0);">这个控件将永远保持为选中状态</span>)</span><br
+ style="font-family: monospace; color: rgb(51, 204, 0);">
+<span style="font-family: monospace; color: rgb(51, 204, 0);">&nbsp;&nbsp;&nbsp;&nbsp;
+*/</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; public void
+reset(ActionMapping mapping, HttpServletRequest request) {</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+super.reset(mapping, request);</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+setUsername(null);</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+setPassword(null);</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+setRepeatedPassword(null);</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+<span style="color: rgb(0, 153, 0);">// BUG here: by pprun</span></span><br
+ style="font-family: monospace; color: rgb(0, 153, 0);">
+<span style="font-family: monospace; color: rgb(0, 153, 0);">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+// 按照此方法的 api 文档说明，说 checkbox 的值必须在此复位，</span><br
+ style="font-family: monospace; color: rgb(0, 153, 0);">
+<span style="font-family: monospace; color: rgb(0, 153, 0);">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+//可是 NewAccountForm.jsp 中 Enable MyList 和 Enable MyBanner 却没有</span><br
+ style="font-family: monospace; color: rgb(0, 153, 0);">
+<span style="font-family: monospace; color: rgb(0, 153, 0);">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+// 所以当用户第一次选中后，以后想改为未选中是没门了，(除了象程序控制那样：</span><br
+ style="font-family: monospace; color: rgb(0, 153, 0);">
+<span style="font-family: monospace; color: rgb(0, 153, 0);">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+// 比如：&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+acctForm.getAccount().setDisplayMylist(</span><br
+ style="font-family: monospace; color: rgb(0, 153, 0);">
+<span style="font-family: monospace; color: rgb(0, 153, 0);">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+//&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+request.getParameter("account.displayMylist") != null);</span><br
+ style="font-family: monospace; color: rgb(0, 153, 0);">
+<span style="font-family: monospace; color: rgb(0, 153, 0);">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+//&nbsp;&nbsp; acctForm.getAccount().setDisplayBanner(</span><br
+ style="font-family: monospace; color: rgb(0, 153, 0);">
+<span style="font-family: monospace; color: rgb(0, 153, 0);">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+//&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+request.getParameter("account.displayBanner") != null);)</span><br
+ style="font-family: monospace; color: rgb(0, 153, 0);">
+<span style="font-family: monospace; color: rgb(0, 153, 0);">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+//</span><br style="font-family: monospace; color: rgb(0, 153, 0);">
+<span style="font-family: monospace; color: rgb(0, 153, 0);">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+// 但是当输入错误时重新显示当前页面时，上次选为未选中状态被丢失了！</span><br
+ style="font-family: monospace; color: rgb(0, 153, 0);">
+<span style="font-family: monospace; color: rgb(0, 153, 0);">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+//</span><br style="font-family: monospace; color: rgb(0, 153, 0);">
+<span style="font-family: monospace; color: rgb(0, 153, 0);">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+// 因为按照 api 的说明</span><br
+ style="font-family: monospace; color: rgb(0, 153, 0);">
+<span style="font-family: monospace; color: rgb(0, 153, 0);">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+// 当 checkbox 为未选中状态时，浏览器是不会发信息到服务器端的，所以</span><br
+ style="font-family: monospace; color: rgb(0, 153, 0);">
+<span style="font-family: monospace; color: rgb(0, 153, 0);">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+// struts 无法设置其值</span><br
+ style="font-family: monospace; color: rgb(0, 153, 0);">
+<span style="font-family: monospace; color: rgb(0, 153, 0);">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+// 解决办法：</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+if (getAccount() != null) {</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+getAccount().setDisplayMylist(false);</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+getAccount().setDisplayBanner(false);</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+}</span><br style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; }</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">}</span><br
+ style="font-family: monospace;">
+<br>
+<h2>基于 JSTL 和 Struts HTML Tag 的 JSP</h2>
+我们主要介绍一下JSP文件的总体结构。<br>
+<br>
+由于此应用在表示层来讲，大体上还是属于 Demo 级别的，所以并未采用 Struts Tile
+技术来对页面布局进行管理。而是使用传统的JSP表态包含指令，来包含进公共部分，如页眉，页脚及导航区域等。<br>
+所有以 Include 前缀命名的JSP都用来被其它JSP页面包含的页面块。例如：<br>
+<br>
+<span style="font-family: monospace;">&lt;%@ include
+file="IncludeTop.jsp" %&gt;</span><br>
+<span style="font-family: monospace;">&nbsp;&nbsp; 页面的具体内容</span><br>
+<span style="font-family: monospace;">&lt;%@ include
+file="IncludeBottom.jsp" %&gt;</span><br>
+<br>
+<br>
+在 IncludeTop.jsp 中声明：<br>
+<span style="font-family: monospace;">&lt;%@ taglib prefix="c"
+uri="http://java.sun.com/jstl/core" %&gt;</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&lt;%@ taglib prefix="fmt"
+uri="http://java.sun.com/jstl/fmt" %&gt;</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&lt;%@ taglib prefix="html"
+uri="http://jakarta.apache.org/struts/tags-html" %&gt;<br>
+<br>
+</span>这样我们就不需要在所有用到JSTL的页面中重复声明。同时，我们并没有使用 Struts 的 Bean 和 Logic 等
+标记库，因为在 Struts 网站上声明有：<br>
+<br>
+<strong>Note:</strong> - Many of the features in this taglib are also
+available in the <a href="http://java.sun.com/products/jsp/jstl/">
+JavaServer Pages Standard Tag Library (JSTL).</a> The Apache Struts
+group encourages the use of the standard tags over the Struts specific
+tags when possible.<br>
+<br>
+<br>
+<br>
+<h2>避免重复提交</h2>
+避免重复提交是一项挑战性的工作，如果你曾经真正参与过一个基于 B/S 结构的项目的话，甚至基于 C/S
+结构的界面也同样有这样的工作，正不过在那个领域叫做控制状态管理，比如，当你按下一个登录按钮后，而按钮并没有变为
+disable/不可用状态，你可能在不经意间又点了一次该按钮，那么在一瞬间你肯定登录了两次，这种情况还好，因为登录并不伤害系统的其它情况，只不过
+统计系统或许会感觉到纳闷，为什么在不到两秒钟内，你登录了两次？<br>
+但是如果这个操作是插入一条数据或者是删除一条数据呢？<br>
+对于插入一条数据，如果系统没设唯一性检查，则两条相同的数据生成了；<br>
+对于删除数据，则第二次删除必然会失败。<br>
+<br>
+知道问题的重要性了，可是对B/S 开发人员来说，问题还不止这些：<br>
+1.
+典型的，网络状况不是很好时，为完成一个插入操作可有会等上好几十秒的时间，用户此时会“再点”一次，还是会“回退”，甚至是忍无可忍关掉浏览器呢？<br>
+<br>
+2. 对于回退，如果前一操作是删除操作，是否需要再次进行一次删除操作？<br>
+<br>
+3. 如果用户收藏起了这一个进行删除或插入操作的URL，在他/她重新激活这一链接后，该做如何处理，如果这一操作需要授权呢？<br>
+<br>
+我们要介绍的机制并不是完美的机制，事实上这些现实的问题并没有列入大多数的WEB
+框架的设计议程中，所以做WEB应用开发是乏味的，甚至有时会让人冒火!<br>
+<br>
+<br>
+<h3>Struts 的事务 Token</h3>
+通过使用Struts 的事务Token 来防止重复提交是可行的，仔细阅读 org.apache.struts.action.Action
+中的如下方法的 javadoc<br>
+<ol>
+  <li>generateToken</li>
+  <li>saveToken</li>
+  <li>isTokenValid</li>
+  <li>resetToken</li>
+  <li><a
+ href="http://struts.apache.org/1.3.8/struts-taglib/tagreference.html#link">&lt;html:link
+transaction="true"&gt;</a> If set to true, any current transaction
+control token will be included in the generated hyperlink, so that it
+will pass an isTokenValid() test in the receiving Action.<br>
+  </li>
+</ol>
+我们通过提交定单的例子来看这个事务 Token 的工作流:<br>
+我们的例子中，是要在显示确认页面中，如果点 'Continue' 按钮，会将一个定单插入到数据库中，显然，我们需避免重复点击该按钮。<br>
+解决方案：<br>
+<br>
+<span style="color: rgb(0, 0, 0);"><span style="font-weight: bold;">我们得看
+看这个过程的映射配置</span>：</span><br>
+<br>
+<span style="font-family: monospace;"><span
+ style="color: rgb(51, 204, 0);">&lt;!-- 进入结算中心页面后，点击继续进入此 --&gt;</span><br>
+</span><span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;
+&lt;action path="/shop/newOrderForm"
+type="org.springframework.samples.jpetstore.web.struts.NewOrderFormAction"</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+name="workingOrderForm" scope="session" validate="false"&gt;</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+&lt;forward name="success"
+path="/WEB-INF/jsp/struts/NewOrderForm.jsp"/&gt;</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; &lt;/action&gt;</span><span
+ style="font-family: monospace;"></span><span
+ style="font-family: monospace;"><br>
+&nbsp;&nbsp;&nbsp; <br>
+&nbsp;&nbsp;&nbsp; <span
+ style="color: rgb(51, 204, 0); font-weight: bold;">&lt;!--
+填写定单信息的多页向导式页面 --&gt;</span><br>
+&nbsp;&nbsp;&nbsp; <span style="color: rgb(51, 204, 0);">&lt;!--
+当第一页校验失败时，需要跳回填写购物单的第一页 --&gt;</span><br style="font-family: monospace;">
+</span><span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;
+&lt;action path="/shop/newOrderStep1"
+type="org.springframework.samples.jpetstore.web.struts.NewOrderAction"</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+name="workingOrderForm" scope="session" validate="true"
+input="/shop/newOrderForm.do"&gt;</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+&lt;forward name="confirm"
+path="/WEB-INF/jsp/struts/ConfirmOrder.jsp"/&gt;</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+&lt;forward name="shipping"
+path="/WEB-INF/jsp/struts/ShippingForm.jsp"/&gt;</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; &lt;/action&gt;<br>
+<br>
+&nbsp;&nbsp;&nbsp; </span><span
+ style="font-family: monospace; color: rgb(51, 204, 0);">&lt;!--
+(只有页面上填写了将宠物送到不同的地址时，默认为送到当前用户的地址)，才会出现此面。此页校验失败，毫无疑问应该回到这个新地址填写页，而不是整个流
+程的第一页。这就是原版中的BUG所在处，因为它将这个向导性的流程处理放到了一个映射中，所以没法处理这种情况 --&gt;</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; &lt;action
+path="/shop/newOrderStep2"
+type="org.springframework.samples.jpetstore.web.struts.NewOrderAction"</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+name="workingOrderForm" scope="session" validate="true"
+input="/WEB-INF/jsp/struts/ShippingForm.jsp"&gt;</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+&lt;forward name="confirm"
+path="/WEB-INF/jsp/struts/ConfirmOrder.jsp"/&gt;</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; &lt;/action&gt;<br>
+<br>
+&nbsp;&nbsp;&nbsp; </span><span
+ style="font-family: monospace; color: rgb(51, 204, 0);">&lt;!--
+当在最后一步确认时出错，需要跳回填写购物单的第一页 --&gt;</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; &lt;action
+path="/shop/newOrderStep3"
+type="org.springframework.samples.jpetstore.web.struts.NewOrderAction"</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+name="workingOrderForm" scope="session" validate="true"
+input="/WEB-INF/jsp/struts/NewOrderForm.jsp"&gt;</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+&lt;forward name="success" path="/WEB-INF/jsp/struts/ViewOrder.jsp"/&gt;</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; &lt;/action&gt;</span><br>
+<br>
+<br>
+1. 因为最后三个映射使用的是同一个 NewOrderAction，再有作重复提交检查就是在这个 Action 中，因此，不可能在这个
+Action 的 exeute 方法中调用 <span
+ style="font-weight: bold; color: rgb(255, 0, 0);">saveToken(request);,
+一般来说，总是在进行重复提交检查的前一个Action 中放一个 Token, 即调用 saveToken(request);方法，<span
+ style="color: rgb(0, 0, 0);">因此根据这个流程，我们只能在</span> </span><span
+ style="font-family: monospace;"><span style="color: rgb(255, 0, 0);">NewOrderFormAction
+</span>中生成：正如你可以在源码中看到一样：<br>
+<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span style="color: rgb(51, 204, 0);">//
+避免重复提交</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span style="color: rgb(255, 0, 0);">saveToken(request);</span><br
+ style="color: rgb(255, 0, 0);">
+<span style="color: rgb(255, 0, 0);">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+return mapping.findForward("success");</span><br>
+</span><br>
+2. 因为我们是要避免重复按 <span style="font-family: monospace;">ConfirmOrder.jsp
+中的 'Continue' 按钮，因此我们需要这样写:<br>
+<br>
+</span><span style="color: rgb(51, 204, 0);">&lt;%-- prevent
+duplication submit --%&gt;</span><br>
+&lt;center&gt;&lt;html:link
+page="/shop/newOrderStep3.do?step=3&amp;newOrder=true" <span
+ style="color: rgb(255, 0, 0);">transaction="true"</span>&gt;<br>
+&nbsp;&nbsp;&nbsp; &lt;img border="0"
+src="../images/button_continue.gif" /&gt;<br>
+&nbsp; &lt;/html:link&gt;<br>
+&lt;/center&gt;<br>
+<br>
+3. 最后，在处理的 Action 中(即 <span style="font-family: monospace;"><span
+ style="color: rgb(255, 0, 0);">NewOrderAction</span>) 进行有效性检查：<br>
+<br>
+&nbsp;protected ActionForward <span style="font-weight: bold;">doExecute</span>(ActionMapping
+mapping, ActionForm form,<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+HttpServletRequest request, HttpServletResponse response) throws
+Exception {<br>
+&nbsp;&nbsp;&nbsp; if (!<span style="color: rgb(255, 0, 0);"><span
+ style="font-weight: bold;">isTokenValid(request, false</span>)</span>)
+{<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; // 如果结果不是同一个令牌，为多重提交<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; //resetToken(request); <span
+ style="color: rgb(255, 0, 0);">// 判断完不自动销毁，留待下面的逻辑处理</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; request.setAttribute("message", "多重提交！");<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+request.getSession().removeAttribute("workingOrderForm");<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+request.getSession().removeAttribute("cartForm");<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; // Fixed by pprun for duplicate-submit
+and bug in the next time submit:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; // 竟然不再需要确认了！<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+request.getSession().removeAttribute("orderForm");<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; return mapping.findForward("failure");<br>
+&nbsp;&nbsp;&nbsp; } else {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; // 多页表单<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; OrderActionForm orderForm =
+(OrderActionForm) form;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; // 是否要进入可选的 shipingAddress 页面<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; if
+(orderForm.isShippingAddressRequired() &amp;&amp; <br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+orderForm.getStep().equals("1")) {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; // 需要将物品寄给别人，而不是自己<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; return
+mapping.findForward("shipping");<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; // 两种情况：<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; // 1.
+从页面1直接进入确认页面（不需要寄到不同的地址时）<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; // 2. 从 shipingAddress
+进入到确认页面<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; } else if
+((orderForm.getStep().equals("1") &amp;&amp; <br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+orderForm.isShippingAddressRequired() == false) || <br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+orderForm.getStep().equals("2")) {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; // 进入确认页面<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; return
+mapping.findForward("confirm");<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; } else if (orderForm.getOrder() != null)
+{<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; // 最终处理<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span
+ style="color: rgb(255, 0, 0);">// 销毁事务标记(放在此处，最开始处很重要，</span><br
+ style="color: rgb(255, 0, 0);">
+<span style="color: rgb(255, 0, 0);">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+// 以保证不管再快的多重提交都会得到无效的判断的)</span><br style="color: rgb(255, 0, 0);">
+<span style="color: rgb(255, 0, 0);">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+<span style="font-weight: bold;">resetToken(request);</span></span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Order order =
+orderForm.getOrder();<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; // todo 这段逻辑应该放在 DAO 层？<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+getPetStore().insertOrder(order);<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; // 成功进行后，移除会话状态，<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; // 以便 NewOrderFormAction
+中检查出是否用户后退操作<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+request.getSession().removeAttribute("workingOrderForm");<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+request.getSession().removeAttribute("cartForm");<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; // Fixed by pprun for
+duplicate-submit and bug in the next time submit:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; // 竟然不再需要确认了！所以必须移除它<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+request.getSession().removeAttribute("orderForm");<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+request.setAttribute("order", order);<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+request.setAttribute("message", "Thank you, your order has been
+submitted.");<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; // 选择 ViewOrder.jsp 中的显示方式<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+request.setAttribute("newOrder", true);<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; return
+mapping.findForward("success");<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; } else {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+request.setAttribute("message", "An error occurred processing your
+order (order was null).");<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; return
+mapping.findForward("failure");<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; }<br>
+&nbsp;&nbsp;&nbsp; }<br>
+&nbsp; }<br>
+<br>
+调用 </span><span style="font-family: monospace;"><span
+ style="color: rgb(255, 0, 0);"><span style="color: rgb(0, 0, 0);">isTokenValid(request,
+false)</span> 判断我们上述的 1, 2, 3 三处步骤是否是按顺序成功处理完，如果中途哪个步骤重新执行，比如在执行到第三步的 </span></span><span
+ style="font-family: monospace;"><span style="font-weight: bold;">doExecute</span>()
+的代码</span><span style="font-family: monospace;"><span
+ style="color: rgb(255, 0, 0);"><span style="font-weight: bold;">resetToken
+(request)之前，</span></span></span><span style="font-family: monospace;">又
+来了一个请求，由于此时 Token 还在，未被 resetToken, 此时比较已经存在的 Token 和 link 带进来的
+Token，发现它们俩不同，因此</span><span style="font-family: monospace;"><span
+ style="color: rgb(255, 0, 0);"><span style="font-weight: bold;">isTokenValid(request,
+false</span>)将返回 false,<span style="color: rgb(0, 0, 0);">
+告之多重提交，并跳到错误页面。</span></span></span><span
+ style="font-family: monospace;"> </span><br>
+<span style="font-family: monospace;"><span
+ style="color: rgb(255, 0, 0);"><br>
+<span style="color: rgb(0, 0, 0);">我们之所以调用</span></span></span><span
+ style="font-family: monospace;"><span style="color: rgb(255, 0, 0);"><span
+ style="font-weight: bold;"> isTokenValid(request, false</span>) <span
+ style="color: rgb(0, 0, 0);">这个方法并传一个 false
+是因为我们使用的向导页面，在这个判断之后到最终的确认页面还有一个或两个页面要处理，因此我们不能在判断完后，立即销毁 Token,
+而是要等到真正处理完时才这样做。但是对简单逻辑的页面，可以直接调用 </span></span></span><span
+ style="font-family: monospace; color: rgb(0, 0, 0);"><span
+ style="color: rgb(255, 0, 0);">isTokenValid(request) 或
+isTokenValid(request, </span><span style="font-family: monospace;"><span
+ style="color: rgb(255, 0, 0);">true) </span>在判断完后，直接销毁 Token.</span></span><br>
+<span style="font-family: monospace;"><br>
+</span>
+<h2>我们还缺什么?</h2>
+客户端校验, 基于 JavaScript 的检验方式。Struts
+支持这种处理方式，只不过我们没有把这一功能加入进来而已。因为客户端检验可以在第一时间发现输入数据的问题，而不至于浪费一个数据传输来回(提交错误数
+据 -&gt; 在 FormBean 中判断为无效 -&gt; 以错误信息的形式显示给用户)。<br>
+但是，请记住!
+服务端校验是一定要做的，因为有人总喜欢在中途拦截、篡改客户发来的数据而骗过客户端的校验器。而服务端是发生在服务器上，只要服务器没被攻破，黑客是不
+可能篡改这段 FormBean 代码的。<br>
+<br>
+漂亮的页面<br>
+现在的页面只是个原型，离最终的漂亮还有段距离。但是这是需要美工设计人员介入的，因为一个人总不可能样样在行的。<br>
+<br>
+<h2>总结</h2>
+对于新手而言，看基于 Struts 的实现代码，有时的确会失去方向。此时，最好将 Strut-config.xml
+文件打印一份在手边，然后对应页面上的每一个动作(提交，链接点击等)得到其要去往的URL，然后在 Strut-config.xml 中找到对应的
+Action 映射。例如：<br>
+在 SignonForm.jsp 页面中有：<br>
+<br>
+<span style="font-family: monospace;">&nbsp; &lt;a href="&lt;c:url
+value="<span style="color: rgb(255, 0, 0);">/shop/newAccountForm</span>.do"/&gt;"&gt;</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp;&nbsp;&nbsp; &lt;img
+border="0" src="../images/button_register_now.gif" /&gt;</span><br
+ style="font-family: monospace;">
+<span style="font-family: monospace;">&nbsp; &lt;/a&gt;</span><br>
+<br>
+于是我们在struts-config.xml 文件中搜索“<span style="font-family: monospace;"><span
+ style="color: rgb(255, 0, 0);">/shop/newAccountForm” 找到：<br>
+<br>
+</span></span><span style="font-family: monospace;"><span
+ style="color: rgb(51, 204, 0);">&lt;!-- 修改帐号信息 --&gt;</span><br
+ style="font-family: monospace;">
+</span><span style="font-family: monospace;">&nbsp;&nbsp;&nbsp;
+&nbsp;&nbsp;&nbsp; &lt;action path="<span style="color: rgb(255, 0, 0);">/shop/newAccountForm</span>"
+type="org.springframework.samples.jpetstore.web.struts.<span
+ style="color: rgb(255, 0, 0);">NewAccountFormAction</span>"<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+name="<span style="color: rgb(255, 0, 0);">workingAccountForm</span>"
+scope="session" validate="false"&gt;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; &lt;forward name="success"
+path="/WEB-INF/jsp/struts/<span style="color: rgb(255, 0, 0);">NewAccountForm.jsp</span>"/&gt;<br>
+&nbsp;&nbsp;&nbsp; &lt;/action&gt;</span><span
+ style="font-family: monospace;"></span><br>
+<br>
+这样我们得知：<br>
+1. 在页面 SignonForm.jsp 中，如果点击了 注册 按钮的话，Struts 将使用 workingAccountForm
+(即，类
+AccountActionForm) 来收集页面的即将的输入值，<br>
+<br>
+2. validate="false" 所以这时不需要做任何校验，因为此时，用户还没输入数据，只是在
+注册页面上点了“注册”按钮被带到了注册信息填写页面。<br>
+<br>
+3. 执行<span style="font-family: monospace;"> <span
+ style="color: rgb(255, 0, 0);">NewAccountFormAction</span></span>#execute()
+方法，在成功处理后，将前进到页面 <span style="font-family: monospace;"><span
+ style="color: rgb(255, 0, 0);">NewAccountForm.jsp<br>
+<br style="color: rgb(0, 0, 0);">
+<span style="color: rgb(0, 0, 0);">4. 用户输入用户信息数据<br>
+<br>
+我们看到在 NewAccountForm.jsp 页面中有：</span><br style="color: rgb(0, 0, 0);">
+<span style="color: rgb(0, 0, 0);">&lt;html:form action="<span
+ style="color: rgb(255, 0, 0);">/shop/newAccount</span>.do"
+styleId="workingAccountForm" method="post" &gt;</span></span></span><br>
+<br>
+5. 我们再次在 struts-config.xml 文件中找 "<span style="font-family: monospace;"><span
+ style="color: rgb(255, 0, 0);"><span style="color: rgb(0, 0, 0);"><span
+ style="color: rgb(255, 0, 0);">/shop/newAccount", <span
+ style="color: rgb(0, 0, 0);">得到</span><br style="color: rgb(0, 0, 0);">
+<span style="color: rgb(0, 0, 0);">&lt;action path="<span
+ style="color: rgb(255, 0, 0);">/shop/newAccount</span>"
+type="org.springframework.samples.jpetstore.web.struts.<span
+ style="color: rgb(255, 0, 0);">NewAccountAction</span>"</span><br
+ style="color: rgb(0, 0, 0);">
+<span style="color: rgb(0, 0, 0);">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+name="workingAccountForm" scope="session" validate="true"
+input="/WEB-INF/jsp/struts/NewAccountForm.jsp"&gt;</span><br
+ style="color: rgb(0, 0, 0);">
+<span style="color: rgb(0, 0, 0);">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+&lt;forward name="success" path="<span style="color: rgb(255, 0, 0);">/shop/index.do</span>"/&gt;</span><br
+ style="color: rgb(0, 0, 0);">
+<span style="color: rgb(0, 0, 0);">&nbsp;&nbsp;&nbsp; &lt;/action&gt;<br>
+<br>
+6. 这一次还是利用同一个 FormBean(已经在前面收集了用户的输入数据), 因为这一次 在 </span></span></span></span></span><span
+ style="font-family: monospace;"><span style="color: rgb(255, 0, 0);"><span
+ style="color: rgb(0, 0, 0);"><span style="color: rgb(255, 0, 0);"><span
+ style="color: rgb(0, 0, 0);"><span style="color: rgb(255, 0, 0);">NewAccountAction#execute()
+<span style="color: rgb(0, 0, 0);">方法中要用到 前面的输入值.<br>
+<br>
+7. 判断输入数据的合法性<br>
+<br>
+如果不合法，将跳转到同一页面，但此时将显示错误信息<br>
+<br>
+如果合法，则继续向前，这一次是回到首页，即这一流程宣告结束。<br>
+&nbsp;<br>
+<br>
+</span></span></span></span></span></span></span>
+</body>
+</html>

@@ -1,0 +1,140 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE hibernate-mapping SYSTEM "http://hibernate.sourceforge.net/hibernate-mapping-3.0.dtd">
+<!--
+    Document   : Banner.hbm.xml
+    Created on : 2006年10月2日, 下午4:24
+    Author     : pprun
+    Description:
+        Purpose of the document follows.
+-->
+
+<hibernate-mapping package="org.springframework.samples.jpetstore.domain">  
+  <!-- 自定义类型，使用枚举 -->
+  <typedef class="org.springframework.samples.jpetstore.domain.StringEnumUserType" name="ship_status">
+    <param name="enumClassname">org.springframework.samples.jpetstore.domain.ShipStatus</param>
+  </typedef>
+  
+  <!-- Order 为数据库关键字，所以表名不能为 Order.
+         这可是花了几小时的代价得出的经验
+  -->
+  <class name="Order" table="Orders" lazy="true">
+    <cache usage="read-write"/>
+    <id name="id" type="long" column="orderId" unsaved-value="null" access="field">
+      <generator class="native" />
+    </id>
+    
+    <!-- A versioned entity. -->
+    <version name="version" access="org.hibernate.property.DirectPropertyAccessor" />
+    
+    <!-- 
+        The other side of this bidirectional 
+        one-to-many association (user to order). 
+        当插入，更改帐户时，不希望把更改用户信息时，要设置：
+        update="false" insert="false"
+        但对于我们的应用，insert="false" 这不符合逻辑，也许有的应用需要这样的逻辑
+        我们当然需要在插入一条定单时指定其相应的用户信息，对于　update="false"
+        应该是在定单持久化了，其用户信息就不能再改了。（这个我们现在保留它）
+        
+        注意：fetch="join" 并达到 "open-session-in-veiw" 效果，需要显式地发出查询
+    -->
+    <many-to-one name="user" 
+                 column="userId"
+                 not-null="true"
+                 update="false"
+                 access="field" />
+    
+    <!-- We can't change the orderDate -->
+    <property name="orderDate"
+              type="timestamp"
+              update="false"
+              not-null="true"
+              access="field"/>
+    
+    <!-- Mapping for the component shipAddr of class Address. -->
+    <component name="shipAddr" class="Address">
+      <property name="addr1" column="shipAddr1" type="string" length="80" not-null="true" />
+      
+      <property name="addr2" column="shipAddr2" type="string" length="80" not-null="true" />
+      
+      <property name="city" column="shipCity" type="string" length="80" not-null="true" />
+      
+      <property name="state" column="shipState" type="string" length="80" not-null="true" />
+      
+      <property name="zipcode" column="shipZipcode" type="string" length="20" not-null="true" />
+      
+      <property name="country" column="shipCountry" type="string" length="20" not-null="true" />
+    </component>
+    
+    <!-- Mapping for the component billAddr of class Address. -->
+    <component name="billAddr" class="Address">
+      <property name="addr1" column="billAddr1" type="string" length="80" not-null="true" />
+      
+      <property name="addr2" column="billAddr2" type="string" length="40" not-null="true" />
+      
+      <property name="city" column="billCity" type="string" length="80" not-null="true" />
+      
+      <property name="state" column="billState" type="string" length="80" not-null="true" />
+      
+      <property name="zipcode" column="billZipcode" type="string" length="20" not-null="true" />
+      
+      <property name="country" column="billCountry" type="string" length="20" not-null="true" />
+    </component>
+    
+    <property name="courier" type="string" length="80" not-null="true" />
+    
+    <property name="totalPrice" type="big_decimal"  precision="10" scale="2" />
+    
+    <property name="billToFirstname" type="string" length="80" not-null="true" />
+    <property name="billToLastname" type="string" length="80" not-null="true" />
+    <property name="shipToFirstname" type="string" length="80" not-null="true" />
+    <property name="shipToLastname" type="string" length="80" not-null="true" />
+    <property name="cardNumber" type="string" length="80" not-null="true" />
+    <property name="expireDate" type="string" length="7" not-null="true" />
+    <property name="cardType" type="string" length="80" not-null="true" />
+    
+    <!-- Simple property mapped with a custom usertype. -->
+    <property name="shipStatus"
+              column="shipStatus"
+              type="ship_status"
+              not-null="true"
+              access="field"
+              length="20" />
+    
+    <!-- java.util.Locale type -->
+    <property name="locale" type="locale" not-null="true" length="5"/>
+    
+    <!-- 
+  Use a standard parent/child relationship for order-lineItems,
+  整个应用只有这里使用了 cascade="all-delete-orphan", 因为帐单是与购买信息
+  息息相关的，如果应用的逻辑在删除 Order 后要保留 lineItem 的话，交其改为:
+  cascade="save-update"即可
+  
+  [引用: Hibernate In Action P253]:
+  (exception Set and Bag) No other mappings should be used for the inverse end 
+  of a many-to-many association.
+  Indexed collections (lists and maps) can’t be used, since Hibernate won’t
+  initialize or maintain the index column if inverse="true". This is also true and
+  important to remember for all other association mappings involving collections:
+  an indexed collection (or even arrays) can’t be set to inverse="true".
+  (也就是说，带索引的集合成员映射，不能使用 inverse="true")
+  
+  todo: review the effect of setting: fetch="join" lazy="false"
+  -->
+    <list name="lineItems"
+          cascade="all-delete-orphan"
+          access="field"
+          batch-size="10"
+          fetch="join"
+          lazy="false">
+      
+      <!-- 
+          注意了，key 中的 column 指的是本实例（Order)的主键，
+      -->
+      <key not-null="true">
+        <column name="orderId" />
+      </key>
+      <list-index column="lineItemPosition"/>
+      <one-to-many class="LineItem"/>
+    </list>
+  </class>
+</hibernate-mapping>

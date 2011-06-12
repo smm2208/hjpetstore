@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE hibernate-mapping SYSTEM "http://hibernate.sourceforge.net/hibernate-mapping-3.0.dtd">
+<!--
+    Document   : Item.hbm.xml
+    Created on : 2006年10月2日, 下午4:24
+    Author     : pprun
+    Description:
+        Purpose of the document follows.
+-->
+
+<hibernate-mapping package="org.springframework.samples.jpetstore.domain">
+  <class name="Item" table="Item" lazy="true">
+    <cache usage="read-write"/>
+    <id name="id" type="long" column="itemId" unsaved-value="null" access="field">
+      <generator class="native" />
+    </id>
+    
+    <!-- A versioned entity. -->
+    <version name="version" access="org.hibernate.property.DirectPropertyAccessor" />
+    
+    <property name="itemName" type="string">
+      <column name="itemName" not-null="true" length="10" unique="true" />
+    </property>
+    
+    <!-- We can't change the product of the item.  -->
+    <many-to-one name="product" 
+                 lazy="no-proxy"
+                 class="Product"
+                 column="productId"
+                 update="false"
+                 not-null="true"
+                 access="field"
+                 foreign-key="FK_productId"/>
+    
+    <!-- 
+    pp:  review the generated SQL for number(10, 2) / decimal(10, 2) 
+    review-result: must use precision="10" scale="2" attrubtes
+    -->
+    <property name="listPrice" type="big_decimal" precision="10" scale="2" />
+    
+    <!-- pp:  review the generated SQL for number(10, 2) / decimal(10, 2) -->  
+    <property name="unitCost" type="big_decimal" precision="10" scale="2"/>
+    
+    <many-to-one name="supplier" 
+                 lazy="no-proxy"
+                 class="Supplier"
+                 column="supplierId"
+                 not-null="false" 
+                 access="field" />
+    <!--  foreign-key="FK_supplierId"/> -->
+    
+    <property name="status" type="string" length="2" />
+    
+    <property name="attr1" type="string" length="80" />
+    
+    <property name="attr2" type="string" length="80" />
+    
+    <property name="attr3" type="string" length="80" />
+    
+    <property name="attr4" type="string" length="80" />
+    
+    <property name="attr5" type="string" length="80" />
+    
+  </class>
+</hibernate-mapping>
