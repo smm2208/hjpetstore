@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE hibernate-mapping SYSTEM
+"http://hibernate.sourceforge.net/hibernate-mapping-3.0.dtd">
+<!--
+    Document   : Account.hbm.xml
+    Created on : 2006年10月2日, 下午2:19
+    Author     : pprun
+    Description:
+        Purpose of the document follows.
+-->
+
+<hibernate-mapping package="org.springframework.samples.jpetstore.domain">
+  
+  <class name="Account" table="Account" lazy="true">
+    <cache usage="read-write"/>
+    <id name="id" type="long" column="accountId" unsaved-value="null" access="field">
+      <generator class="native" />
+    </id>
+    
+    <!-- A versioned entity. -->
+    <version name="version" access="org.hibernate.property.DirectPropertyAccessor" />
+    
+    <!-- We don't change the username, so map it with update="false".
+        This is an immutable property, it is also unique.
+        If your DBMS supports regex functions, add this:
+        check="REGEXP_LIKE(ENAME,'^[[:alpha:]]+$')"
+    -->
+    <property name="username" type="string" length="80" update="false" access="field">
+      <column name="username" length="80" not-null="true" unique="true" />
+    </property>
+    
+    <!-- Password is a keyword in some databases, so we quote it. -->
+    <property name="password" type="string" column="`password`" 
+              length="80" not-null="true" />
+    
+    <property name="firstname" type="string" length="80" not-null="true" />
+    
+    <property name="lastname" type="string" length="80" not-null="true" />
+    
+    <property name="email" type="string" length="80" not-null="true" />
+    
+    <property name="status" type="string" length="2" not-null="true" />
+    
+    <!-- Mapping for the component class Address. -->
+    <component name="userAddr" class="Address">
+      <property name="addr1" type="string" length="80" not-null="true" />
+      <!-- 只有这个地址的这项是 40，其它的都为 80, 产品时应该一致 -->
+      <property name="addr2" type="string" length="40" not-null="true" />
+      
+      <!--
+      <property name="address" type="org.springframework.samples.jpetstore.domain.hibernate.DoubleStringType">
+        <column name="addr1" length="80" not-null="true" />
+        <column name="addr2" length="40" not-null="true"/>
+      </property>
+      -->
+      
+      <property name="city" type="string" length="80" not-null="true" />
+      
+      <property name="state" type="string" length="80" not-null="true" />
+      
+      <property name="zipcode" type="string" length="20" not-null="true" />
+      
+      <property name="country" type="string" length="20" not-null="true" />
+    </component>
+    
+    <property name="phone" type="string" length="80" not-null="true" />
+    
+    <property name="langPreference" type="string" length="80" not-null="true" />
+    
+    <!-- 
+    A simple uni-directional one-to-many association(favCategory to user). 
+    todo: see the effect of fetch="join"
+    单向的关系，需要特殊照顾，当如此访问 account.category.categoryName 时，
+    大多数情况下，在 detached session 时，是不可能的
+    双向的 lazy="no-proxy", 或 fetch="join"(对集合）则是可以的.
+    -->
+    <many-to-one
+      name="favCategory"
+      column="favCategoryId"
+      class="Category"
+      foreign-key="FK_favCategoryId"/>
+    
+    <property name="displayMylist" type="boolean" />
+    
+    <property name="displayBanner" type="boolean" />
+    
+    <!-- Mapping for Order association. -->
+    <set name="orders"
+         inverse="true"
+         cascade="save-update"
+         access="field">
+      <key column="userId" />
+      <one-to-many class="Order"/>
+    </set>
+  </class>
+</hibernate-mapping>

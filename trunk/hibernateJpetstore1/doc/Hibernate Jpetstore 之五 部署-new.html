@@ -1,0 +1,284 @@
+文档内容
+<ul><li>概览</li><li>获得工程代码</li><li>配置</li><ul><li>数据库初始化</li><ul><li>MySQL 5.x</li></ul><ul><li>Oracle 9i, 10g, HsqlDB, Postgres 及其它</li></ul><li>应用服务器初始化</li><ul><li>本地数据源（非JNDI 数据源）</li></ul><ul><ul><li>Tomcat 5.x,</li><li>Sun Application Server8.x, 9.x / GlassFish 1.x, 2.x</li><li>Jetty 6.1.3</li></ul></ul><ul><li>JNDI 数据源</li></ul><ul><ul><li>Sun Application Server8.x, 9.x / GlassFish 1.x, 2.x</li><li>JBoss 4.0.4 +</li><li>Jetty 6.1.3</li></ul></ul></ul><li>部署并运行</li><li>总结</li></ul> PS: <span style="font-style: italic; font-weight: bold;">为什么这个系列的最后一篇这么长时间才出来？原因是，我跟大家说过，工程的所有源代码最终将发布。所以我要找一个合适的地方上载。</span>
+<span style="font-style: italic; font-weight: bold;"> 这个过程还是比较烦的，况且老外们的工作效率普通不如我们，每次交流至少等上一周左右才有回应。试想申请、审批，确认，上载等过程，其实令我这个急性子试 图想把自己家里的电脑搬到主机托管中心，申请一个域名了事！
+
+</span> 还好，它终于出来了 (<a href="https://hjpetstore.dev.java.net/">hjpetstore</a>)！但愿没让你失望。
+
+在阅读本篇文章之前，请先仔细阅读前面系列的相关内容。
+
+<h2>概览</h2>对于传统的J2EE 项目，当项目开发完后，其工作并未结束，紧接着的部署过程其实是很令开发者头痛的，特别是象重量级的应用服务 WebLogic, WebSphere 等。还好 NetBeans 现在抬简化了这一过程。
+我们这个例子是基于无存在数据库的方案，所以在我们演示结果前，我们将要导入一些数据。但首先我们得创建相应的数据库用户和数据库方案(Schema).
+
+<h2>获得工程代码</h2>1.从 <a href="https://hjpetstore.dev.java.net/">hjpetstore</a> 得到工程源代码，具体的步骤网站上有说明，在 NetBeans 中就很简单了：
+
+CVS | checkout:
+cvs root: :pserver:username@cvs.dev.java.net:/cvs     (这个 username 是你必须到 java.net 上注册的用户名称，目前 anonymous 好象不能工作了)
+password:
+
+下一页中， module: hjpetstore 下载完后，NetBeans 会问你是否打开该工程，选择是。
+
+2. 你可能需要调整一下lib 的位置，这是 NetBeans 的一个缺陷，保存的路径不是相对路径。
+右击工程 | properties
+点 Libraries，在Compile 页中将所有 .jar 文件 选中后 'remove'，
+再加入下载下来的WEB-INF/lib 目录下的所有 jar 文件
+
+3. 确保 Clean And Build project 成功
+
+
+<h2>配置</h2><h3>数据库初始化</h3>我这里只介绍 MySql  的 配置，其它的数据库配置列作 TBD. (待做，其实大部分脚本已经在工程中了，等待你的加入吧！因为我不是一个数据库专家，也没有太多时间去研究这个。）我成功配置过oracle 和 hsqldb.
+
+<span style="font-weight: bold; color: rgb(255, 0, 0);">注 意：因为下面的脚本会删除 'hjpetstore'数据库用户及其所有资源，请确保用户 'hjpetstore' (oracle) 或数据库 hjpetstore (mysql) 目前没被使用，如果使用了，请修改数据库脚本。所以最好的办法是使用你的个人数据库来作演示。</span>
+
+<h4>MySQL 5.x</h4>
+1. 创建用户hjpetstore 和 数据库 hjpetstore
+
+# 在命令行下以 root 身份运行创建脚本
+# $hjpetstore 是用真实的工程路径代替
+# 其它值根据你的设置作相应的改变，比如你如果连非本机的数据库，那 'localhost'  就是那个机器在 ip 了
+> mysql -h localhost -u root -p < $hjpetstore\conf\jpetstore_mysql.sql Enter password: ******** 如果程序的输出显示了 hjpetstore, 则表明成功了： Database information_schema <span style="font-weight: bold; color: rgb(102, 102, 204);">
+hjpetstore</span>
+mysql
+...
+
+或者，如果有mysql query browser 的话，用它直接运行如下命令也可：
+-- frist drop database hjpetstore and user hjpetstore
+drop database if exists hjpetstore;
+
+create database hjpetstore;
+
+-- create user hjpetstore and give the password  hjpetstore
+grant all privileges on hjpetstore.* to hjpetstore identified by 'hjpetstore';
+
+show databases;
+
+2.  得用 hibernate.hbm2ddl.auto 自动生成数据库方案
+确保 web/WEB-INF/dataAccessContext-hibernate.xml 中 设置了<prop key="hibernate.hbm2ddl.auto"> update</prop>
+
+这个属性的具体含义，我在前面的系列中已经讲过了，在产品初始化，你就可以安全地把它注释掉。
+
+3. 在 NetBeans 右击工程 Run project
+这一步将所有的数据库表创建出来, 只是没有数据。
+
+4. 加裁数据
+使用 NetBeans Sql Editor
+4.1 注册mysql 驱动
+Runtime | DataBases 右击 -> new Driver
+Add ... -> 导航到工程WEB-INF/lib/下的 mysql-connector-java-3.1.12-bin 点 OK
+
+4.2 创建连接
+右击刚注册的驱动 MySql (Connector/J driver) -> Connect using ....
+Database URL: jdbc:mysql://localhost:3306/hjpetstore?useUnicode=true&characterEncoding=UTF-8
+user name: hjpetstore
+password: hjpetstore
+
+点 Ok 后，在Databases 下应该会出现一个新的连接。
+
+4.3 执行 SQL 脚本
+1. 在 Files 窗口中导航到 db/mhsql/jpetstore-mysql-dataload.sql 并双击打开它
+2. 在编辑器的工具条中 Connection: 选择 刚创建的数据库连接：jdbc:mysql://localhost:3306/hjpetstore?useUnicode=true&amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;amp;ampamp;characterEncoding=UTF-8
+3. 点击编辑器工具条上，紧挨着下拉框的 run sql
+
+确保没有显示错误信息。
+
+
+<h4>Oracle 9i, 10g, HsqlDB, Postgres 及其它</h4>
+数据库脚本都已经在工程中了，你所要做的就是利用这些数据库提供的工具创建一个用户 'hjpetstore',
+之后的步骤与上述相同。
+
+
+<h3>应用服务器初始化</h3><h4>本地数据源（非JNDI 数据源）</h4>
+<span style="font-weight: bold;">Tomcat 5.x,</span>
+事实上，工程默认是使用 Tomcat 服务器的，所以现在你根本不需要改动什么就可以运行工程了。
+有关数据源的配置是在 web/META-INF/ context.xml 文件中
+
+<span style="font-weight: bold;">Sun Application Server8.x, 9.x / GlassFish 1.x, 2.x </span>
+同样的配置，只不过要生成一个 sun-web.xml  文件，
+很好，NetBeans 会帮你自动产生，如下：
+右击工程 -> Run | Server: 选择注册的Sun App Server (如果你还没注册 Sun App Server 的话，你需要先注册一下，具体步骤见相关文档)
+
+此时，文件已经产生，右击工程 -> Run Project
+
+<span style="font-weight: bold;">Jetty 6.1.3</span>
+所有的配置文件已经在 WEB-INF 下了： jetty-web.xml, jetty-env.xml, 所以要做的只剩下将dist 上下生成的 hibernateJpetstore.war
+放到 Jetty 的部署目录，还好这个目录跟 Tomcat 的目录同名叫 webapps
+
+在 Jetty 目录下运行:
+java -jar start.jar
+然后在浏览器中请求: http://localhost:8080/hjpetstore/
+
+<h4>JNDI 数据源</h4>
+使用JNDI数据源当然是为了使用其 JTA(包容器管理的事务及其数据库连接池的实现），
+只需要按正确的名称 jdbc/hjpetstore 在管理界面配好数据库连接池和相应的数据源，运行起来还是挺方便的,
+
+<span style="font-weight: bold;">Sun Application Server8.x, 9.x / GlassFish 1.x, 2.x</span>
+1. 首先按照这篇文章介绍的步骤正确配置 mysql 数据源连接池
+(中文) http://pprun.blogspot.com/2007/05/glassfishsun-app-server.html
+(English) http://enpprun.blogspot.com/2007/05/problem-in-setting-mysql-xa-datasource.html
+注意，我文章中介绍的是使用root/root 作为用户名/密码，此时可以设置成hjpetstore/hjpetstore
+
+2. 配置数据源
+在应用服务器的 管理 界面 导航Resources | JDBC | JDBC Resources
+点击右边主页面中的 new 后进入配置页面，填入：
+JNDI Name: jdbc/hjpetstore
+Pool Name: 选择前面配置的数据源:连接池：mysql
+完成后点击 Ok
+
+
+<span style="font-weight: bold;">JBoss 4.0.4 +</span>
+
+1. 使用 JBoss 也许是冲着所谓的 #1 应用服务器而来的吧，但其配置有一些变化：
+第一它实现了自己的一套日志方式，所以需要把 web.xml 中的
+<listener>
+<listener-class>org.springframework.web.util.Log4jConfigListener</listener-class>
+</listener>
+注释掉。
+
+2. 它的数据源的配法也不相同，只需要将相应的数据库的配置文件(如：mysql-ds.xml ，内容见随后)放到
+jboss-4.0.4.GA\server\default\deploy 目录下，
+再在 jboss-4.0.4.GA\server\default\conf\login-config.xml 中加入:
+<pre>    &lt;application-policy name = "MySqlDbRealm"&gt;
+&lt;authentication&gt;
+&lt;login-module code
+= "org.jboss.resource.security.ConfiguredIdentityLoginModule" flag =
+"required"&gt;
+&lt;module-option name ="principal"&gt;hjpetstore&lt;/module-option&gt;
+&lt;module-option name ="userName"&gt;hjpetstore&lt;/module-option&gt;
+&lt;module-option name ="password"&gt;hjpetstore&lt;/module-option&gt;
+
+&lt;module-option name
+="managedConnectionFactoryName"&gt;jboss.jca:service=LocalTxCM,name=hjpetstore-mysql&lt;/module-option&gt;
+&lt;/login-module&gt;
+&lt;/authentication&gt;
+&lt;/application-policy&gt;
+</pre>   mysql-ds.xml 相应的内容如下：
+<pre>    &lt;?xml version="1.0" encoding="UTF-8"?&gt;
+&lt;datasources&gt;
+&lt;local-tx-datasource&gt;
+
+&lt;jndi-name&gt;hjpetstore-mysql&lt;/jndi-name&gt;
+&lt;connection-url&gt;jdbc:mysql://localhost:3306/hjpetstore&lt;/connection-url&gt;
+&lt;driver-class&gt;com.mysql.jdbc.Driver&lt;/driver-class&gt;
+&lt;user-name&gt;hjpetstore&lt;/user-name&gt;
+&lt;password&gt;hjpetstore&lt;/password&gt;
+&lt;exception-sorter-class-name&gt;org.jboss.resource.adapter.jdbc.vendor.MySQLExceptionSorter&lt;/exception-sorter-class-name&gt;
+
+&lt;!-- should only be used on drivers after 3.22.1 with "ping" support
+
+&lt;valid-connection-checker-class-name&gt;org.jboss.resource.adapter.jdbc.vendor.MySQLValidConnectionChecker&lt;/valid-connection-checker-class-name&gt;
+--&gt;
+&lt;!-- sql to call when
+connection is created
+
+&lt;new-connection-sql&gt;some arbitrary sql&lt;/new-connection-sql&gt;
+--&gt;
+&lt;!-- sql to call on an
+existing pooled connection when it is obtained from pool -
+MySQLValidConnectionChecker is preferred for newer drivers
+
+&lt;check-valid-connection-sql&gt;some arbitrary
+sql&lt;/check-valid-connection-sql&gt;
+
+--&gt;
+
+&lt;!-- corresponding
+type-mapping in the standardjbosscmp-jdbc.xml (optional for ejb) --&gt;
+&lt;metadata&gt;
+
+&lt;type-mapping&gt;mySQL&lt;/type-mapping&gt;
+&lt;/metadata&gt;
+&lt;/local-tx-datasource&gt;
+&lt;/datasources&gt;</pre>
+
+3. 还有，就是JBoss 的 JNDI 的名称有些怪：
+<pre>    &lt;bean id="dataSource"
+class="org.springframework.jndi.JndiObjectFactoryBean"&gt;
+
+&lt;!-- JBoss
+--&gt;
+
+&lt;property name="jndiName" value="java:/hjpetstore-mysql"&gt;
+
+&lt;!-- other standard Java EE server
+
+&lt;property name="jndiName"
+value="java:comp/env/jdbc/hjpetstore"&gt;
+--&gt;
+&lt;/bean&gt;
+</pre>
+
+看到区别了吗？它只需要java:/hjpetstore-mysql
+
+
+<span style="font-weight: bold;">Jetty 6.1.3</span>
+目前，还未测试成功！
+
+
+<h2>部署并运行</h2>
+在 NetBeans 中，只需要在 工程属性中选定所要运行的 服务器后，点 Run Project  即可运行在本地数据源配置上。
+此外，还可以按照服务指定的自动部署目录，将生成的 dist/hibernateJpetstore.war 文件放到该目录，
+如果服务器已经运行，一切就 ok 了，如果没有，启动服务器即可。
+
+如果要运行在 JNDI 配置上，则需要改一下 web.xml :
+<pre>
+&lt;!--
+- Location of the XML file that defines the root
+application context.
+- Applied by ContextLoaderServlet.
+--&gt;
+&lt;context-param&gt;
+
+&lt;param-name&gt;contextConfigLocation&lt;/param-name&gt;
+
+&lt;!-- local datasource --&gt;
+&lt;param-value&gt;
+/WEB-INF/dataAccessContext-hibernate.xml
+/WEB-INF/applicationContext.xml
+&lt;/param-value&gt;
+&lt;!-- jndi datasource and JTA (for a transactional
+JNDI DataSource)
+
+&lt;param-value&gt;
+
+/WEB-INF/dataAccessContext-hibernate-jndi.xml
+/WEB-INF/applicationContext.xml
+&lt;/param-value&gt;
+--&gt;
+&lt;/context-param&gt;
+</pre>
+这几行配置说的应该很明白了，上面的是默认情况下的本地数据源，如果使用JNDI数据源，是这样了:
+<pre>
+&lt;context-param&gt;
+
+
+&lt;param-name&gt;contextConfigLocation&lt;/param-name&gt;
+
+
+
+&lt;!-- jndi datasource and JTA (for a
+transactional JNDI DataSource)      --&gt;
+
+&lt;param-value&gt;
+
+
+/WEB-INF/dataAccessContext-hibernate-jndi.xml
+/WEB-INF/applicationContext.xml
+
+&lt;/param-value&gt;
+
+
+
+&lt;/context-param&gt;
+</pre>
+
+只要按照上述的步骤配置好了应用服务器的数据源，现在运行的效果应该跟本地数据源是一样的。
+
+
+<h2>总结</h2>
+NetBeans 对于 Java EE 的开发是全面的，除了几个服务器还未集成进来之外，其它的功能已经走在了所有IDE的最前列，
+但这也不防碍开发者使用这些未集成的服务器，因为大部分服务器都支持热部署，当NetBeans 给你的工程生成了 WAR 文件后，
+剩下的就是“将它放入热部署目录”了。
+
+
+看运行在 Jetty6.1.3 上的效果 (注意脚注部分显示，当前运行在什么服务器上):
+
+<a onblur="try {parent.deselectBloggerImageGracefully();} catch(e) {}" href="http://bp1.blogger.com/_bpUunzIgcNA/RsQSbKLv0eI/AAAAAAAAAEc/VADoU4S28o8/s1600-h/hjpetstore_poweredby_jetty.png"><img style="margin: 0px auto 10px; display: block; text-align: center; cursor: pointer;" src="http://bp1.blogger.com/_bpUunzIgcNA/RsQSbKLv0eI/AAAAAAAAAEc/VADoU4S28o8/s400/hjpetstore_poweredby_jetty.png" alt="" id="BLOGGER_PHOTO_ID_5099220935889637858" border="0" /></a>

@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE hibernate-mapping SYSTEM "http://hibernate.sourceforge.net/hibernate-mapping-3.0.dtd">
+<!--
+    Document   : LineItem.hbm.xml
+    Created on : 2006年10月2日, 下午4:24
+    Author     : pprun
+    Description:
+        Purpose of the document follows.
+-->
+
+<hibernate-mapping package="org.springframework.samples.jpetstore.domain">
+  <class name="LineItem" table="LineItem">
+    <cache usage="read-write"/>
+    <!-- 
+    尽量不要使用复合键，将复杂化 实体关系 映射
+    
+    <composite-id name="id"
+                  class="LineItem$Id"
+                  access="field">
+      
+      <key-property name="orderId"
+                    access="field"
+                    column="orderId" />
+      
+      <key-property name="lineNumber"
+                    access="field"
+                    column="lineNumber" />
+    </composite-id>
+    -->
+    
+    <id name="id" type="long" column="lineItemId" unsaved-value="null" access="field">
+      <generator class="native" />
+    </id>
+    
+    <!-- A versioned entity. -->
+    <version name="version" access="org.hibernate.property.DirectPropertyAccessor" />
+    
+    <property name="quantity" type="integer" not-null="true"/>
+    
+    <property name="lineNumber" type="integer" access="field" not-null="true" length="10" />
+    
+    <!-- 
+      Read-only side of the indexed one-to-many collection in LineItem.
+      The other side of this bidirectional 
+      todo:
+      必须设置成 update="false" insert="false"
+      否则：org.hibernate.MappingException: 
+      Repeated column in mapping for entity: 
+      org.springframework.samples.jpetstore.domain.LineItem column: 
+      orderId (should be mapped with insert="false" update="false")
+
+      why????????????
+      如果允许插入操作，将破坏约束？
+    -->
+    <many-to-one name="order" 
+                 column ="orderId"
+                 not-null="true"
+                 access="field"
+                 insert="false"
+                 update="false" />
+    
+    <!-- 单向关系，只能从 LineItem -> Item -->
+    <many-to-one name="item"
+                 column="itemId"
+                 not-null="true"
+                 access="field"
+                 update="false" />
+  </class>
+</hibernate-mapping>

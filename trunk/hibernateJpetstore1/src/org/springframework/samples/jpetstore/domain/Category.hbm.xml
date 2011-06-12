@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE hibernate-mapping SYSTEM
+"http://hibernate.sourceforge.net/hibernate-mapping-3.0.dtd">
+<!--
+    Document   : Category.hbm.xml
+    Created on : 2006年10月2日, 下午3:28
+    Author     : pprun
+    Description:
+        Purpose of the document follows.
+-->
+
+<hibernate-mapping package="org.springframework.samples.jpetstore.domain">
+  <class name="Category" table="Category" lazy="true"> 
+    <cache usage="read-only"/>
+    <id name="id" type="long" column="categoryId" unsaved-value="null" access="field">
+      <generator class="native" />
+    </id>
+    
+    <!-- A versioned entity. -->
+    <version name="version" access="org.hibernate.property.DirectPropertyAccessor" />
+    
+    <property name="categoryName" type="string">
+      <column name="categoryName" not-null="true" length="80" unique="true" />
+    </property>
+    
+    <!-- categoryDesc is limited to 255 characters.-->
+    <property  name="categoryDesc" type="string" length="255" />
+    
+    <!-- 
+      Mapping for Product association. 
+      cascade="all-delete-orphan" 只有在 product 只被 category 使用，不被任何
+      其它实体引用时才用(也就是 product 的生命周期受 category 控制)，
+      因此不适合，因为 item 引用了 product
+    -->
+    <set name="products"
+         inverse="true"
+         cascade="save-update"
+         access="field">
+      <key column="categoryId" />
+      <one-to-many class="Product"/>
+      <!--
+        <loader query-ref="loadItemsForProduct"/>
+        -->
+    </set>
+  </class>
+</hibernate-mapping>

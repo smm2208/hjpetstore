@@ -1,0 +1,216 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE beans PUBLIC "-//SPRING//DTD BEAN 2.0//EN" "http://www.springframework.org/dtd/spring-beans-2.0.dtd">
+
+<!--
+  - Application context definition for JPetStore's data access layer.
+  - Accessed by business layer objects defined in "applicationContext.xml"
+  - (see web.xml's "contextConfigLocation").
+  -
+  - This version of the data access layer works on one combined database,
+  - implemented on Hibernate.
+-->
+<beans>
+    
+    <!-- ========================= RESOURCE DEFINITIONS ========================= -->
+  
+    <!-- Local Apache Commons DBCP DataSource that refers to a combined database -->
+    <!-- (see dataAccessContext-jta.xml for an alternative) -->
+    <!-- The placeholders are resolved from jdbc.properties through -->
+    <!-- the PropertyPlaceholderConfigurer in applicationContext.xml -->
+    <!--
+  <bean id="dataSource" class="org.apache.commons.dbcp.BasicDataSource" destroy-method="close">
+    <property name="driverClassName" value="${jdbc.driverClassName}"/>
+    <property name="url" value="${jdbc.url}"/>
+    <property name="username" value="${jdbc.username}"/>
+    <property name="password" value="${jdbc.password}"/>
+  </bean>
+  -->
+  
+    <!-- Local DataSource that works in any environment -->
+    <!-- Note that DriverManagerDataSource does not pool; it is not intended for production -->
+    <!-- See JPetStore for an example of using Commons DBCP BasicDataSource as alternative -->
+    <!-- See Image Database for an example of using C3P0 ComboPooledDataSource as alternative  
+  <bean id="dataSource" class="org.springframework.jdbc.datasource.DriverManagerDataSource">
+    <property name="driverClassName" value="${jdbc.driverClassName}"/>
+    <property name="url" value="${jdbc.url}"/>
+    <property name="username" value="${jdbc.username}"/>
+    <property name="password" value="${jdbc.password}"/>
+  </bean>
+   -->
+   
+    <!-- Local C3P0 DataSource that works in any environment -->
+    <!-- See JPetStore for an example of using Apache Commons DBCP as alternative -->
+    <!-- (Both DataSource implementations have a "close" method to be called on shutdown) -->
+    <bean id="dataSource" class="com.mchange.v2.c3p0.ComboPooledDataSource" destroy-method="close">
+        <property name="driverClass" value="${jdbc.driverClassName}"/>
+        <property name="jdbcUrl" value="${jdbc.url}"/>
+        <property name="user" value="${jdbc.username}"/>
+        <property name="password" value="${jdbc.password}"/>
+        <property name="minPoolSize" value="5"/>
+        <property name="maxPoolSize" value="20"/>
+        <property name="maxIdleTime" value="1800"/>
+        <property name="maxStatements" value="50"/>
+    </bean>
+    
+    <!-- JNDI DataSource for J2EE environments -->
+    <!-- 
+    <bean id="dataSource" class="org.springframework.jndi.JndiObjectFactoryBean">
+            <property name="jndiName" value="java:comp/env/jdbc/hjpetstore"/>
+    </bean>
+  -->
+    <!-- Hibernate SessionFactory -->
+    <bean id="sessionFactory" class="org.springframework.orm.hibernate3.LocalSessionFactoryBean">
+        <property name="dataSource" ref="dataSource"/>
+        <!-- 所有实体映射文件列表 -->
+        <property name="mappingResources">
+            <list>
+                <value>org/springframework/samples/jpetstore/domain/Account.hbm.xml</value>
+                <value>org/springframework/samples/jpetstore/domain/Banner.hbm.xml</value>
+                <value>org/springframework/samples/jpetstore/domain/Category.hbm.xml</value>
+                <value>org/springframework/samples/jpetstore/domain/Inventory.hbm.xml</value>
+                <value>org/springframework/samples/jpetstore/domain/Item.hbm.xml</value>
+                <value>org/springframework/samples/jpetstore/domain/LineItem.hbm.xml</value>
+                <value>org/springframework/samples/jpetstore/domain/Order.hbm.xml</value>
+                <value>org/springframework/samples/jpetstore/domain/Product.hbm.xml</value>
+                <value>org/springframework/samples/jpetstore/domain/Supplier.hbm.xml</value>
+            </list>
+        </property>
+        <property name="hibernateProperties">
+            <props>
+                <prop key="hibernate.dialect">${hibernate.dialect}</prop>
+                <prop key="hibernate.show_sql">true</prop>
+                <prop key="hibernate.format_sql">true</prop>
+                <prop key="hibernate.generate_statistics">true</prop> 
+                <prop key="hibernate.max_fetch_depth">2</prop>
+                <prop key="hibernate.hbm2ddl.auto">update</prop> 
+                <!--
+                hibernate.hbm2ddl.auto 配置的值
+                   1. create 在每次
+                      SesstionFactory 构建时(一般是应用重启时，或者伴随着应用服务器重启时)，先将之前数据库中的所有数据全部清空，后紧跟着根据所有的
+                      hbm.xml 映射文件重新创建新的数据库表
+                   2. create-drop 除了
+                      create 的所有含义之外，在每次应用的退出前，将进行一次数据空清空。因此这个配置将有两次清空操作，一次是退出，一次是启动时。
+                   3. update
+                      如果在开发阶段更改了实体对象的映射文件(hbm.xml) 的定义后，此配置将后台的数据库表进行更新(如增加表的列)
+                   4. validate
+                      用于校验现有的表与现有的配置是否一致。
+
+                值得注意的是 hibernate.hbm2ddl.auto
+                的配置：
+                Usually you only leave it turned on
+                in continous unit testing, but another run of hbm2ddl would drop
+                everything you have stored - the create
+                configuration setting actually translates into "drop all tables
+                from the schema, then re-create all tables, when the SessionFactory is
+                build". Most new Hibernate
+                users fail at this point and we see questions about Table not found
+                error messages regularly.
+
+                我这里翻译一下：
+                一般情况下，只有在连续的测试阶段时需要设置这个值，因为在测试时一般都希望在测试完后，数据与测试前并无变化。
+                将hibernate.hbm2ddl.auto 配置成 "create" 是意思是在每次 SesstionFactory
+                构建时(一般是应用重启时，或者伴随着应用服务器重启时)，先将之前数据库中的所有数据全部清空，后紧跟着根据所有的 hbm.xml
+                映射文件重新创建新的数据库表。大我数 Hibernate 的新手总是没有理解这一点，他们以为 "create" 都是简单地创建，而忽略了
+                "drop" 之前的丢弃副作用。
+                从上可以看出，除了 validate
+                在产品阶段看来有点用之外(但是肯定会影响应用的启动速度的)，其它的并不适合已经部署了的产品。特别是对于已存在数据的数据库。
+                试想如果采用了 create 或 create-drop，在不经意(应用重启)间可能会将所有的数据库的数据全部清空。
+                -->
+                
+                <!--
+        　　说明一下：
+          - 将ehcache.xml 置于 classpath 中
+          - 如果不设置“查询缓存”，那么hibernate只会缓存使用load()方法
+          获得的单个持久化对象，如果想缓存使用findall()、 list()、Iterator()、
+          createCriteria()、createQuery()等方法获得的数据结果集的话，就需要设置
+          hibernate.cache.use_query_cache true 才行
+          - 在Hbm文件中添加<cache usage="read-only"/>
+          - 如果需要“查询缓存”，还需要在使用
+            Query或Criteria()时设置其setCacheable(true);属性
+        -->
+                <prop key="hibernate.cache.use_query_cache">true</prop>
+                <prop key="hibernate.cache.provider_class">org.hibernate.cache.EhCacheProvider</prop>
+            </props>
+        </property>
+        <!-- 为解决 merge()方法语义的歧义 -->
+        <property name="eventListeners">
+            <map>
+                <entry key="merge">
+                    <bean class="org.springframework.orm.hibernate3.support.IdTransferringMergeEventListener"/>
+                </entry>
+            </map>
+        </property>
+    </bean>
+    
+    <!-- Transaction manager for a single Hibernate SessionFactory (alternative to JTA) -->
+    <bean id="transactionManager" class="org.springframework.orm.hibernate3.HibernateTransactionManager">
+        <property name="sessionFactory" ref="sessionFactory"/>
+    </bean>
+    
+    <!-- Transaction manager that delegates to JTA (for a transactional JNDI DataSource) -->
+    <!-- 
+  <bean id="transactionManager" class="org.springframework.transaction.jta.JtaTransactionManager"/>
+  -->
+  
+  
+    <!-- ========================= DAO DEFINITIONS: IBATIS IMPLEMENTATIONS ========================= -->
+  
+    <bean id="accountDao" class="org.springframework.samples.jpetstore.dao.hibernate.HibernateAccountDao">
+        <property name="sessionFactory" ref="sessionFactory"/>
+    </bean>
+    
+    <bean id="categoryDao" class="org.springframework.samples.jpetstore.dao.hibernate.HibernateCategoryDao">
+        <property name="sessionFactory" ref="sessionFactory"/>
+    </bean>
+    
+    <bean id="productDao" class="org.springframework.samples.jpetstore.dao.hibernate.HibernateProductDao">
+        <property name="sessionFactory" ref="sessionFactory"/>
+    </bean>
+    
+    <bean id="itemDao" class="org.springframework.samples.jpetstore.dao.hibernate.HibernateItemDao">
+        <property name="sessionFactory" ref="sessionFactory"/>
+    </bean>
+    
+    <bean id="orderDao" class="org.springframework.samples.jpetstore.dao.hibernate.HibernateOrderDao">
+        <property name="sessionFactory" ref="sessionFactory"/>
+    </bean>
+    
+    <!--
+   OpenSessionInView模式
+    Spring+Hibernate中集合映射如果使用lazy="true"， 
+    当PO传到View层时， 出现未初始化session已关闭的错误，只能在dao先初始化
+    parent.getChilds().size();
+
+    Spring提供Open Session In View来解决这个问题, 有两种方式
+   1. Interceptor
+    <bean id="openSessionInViewInterceptor"
+          class="org.springframework.orm.hibernate3.support.OpenSessionInViewInterceptor">
+        <property name="sessionFactory" ref="sessionFactory"/>
+    </bean>
+
+    <bean id="urlMapping" class="org.springframework.web.servlet.handler.SimpleUrlHandlerMapping">
+        <property name="interceptors" ref="openSessionInViewInterceptor"/>
+        <property name="mappings">
+            <props>
+            ......
+            </props>
+        </property>
+    </bean>
+   2. Filter
+    <web-app>
+
+    <filter>
+    <filter-name>hibernateFilter</filter-name>
+    <filter-class>
+    org.springframework.orm.hibernate.support.OpenSessionInViewFilter
+    </filter-class>
+    </filter>
+
+    <filter-mapping>
+    <filter-name>hibernateFilter</filter-name>
+    <url-pattern>*.do</url-pattern>
+    </filter-mapping>
+
+    </web-app>
+    -->
+</beans>
