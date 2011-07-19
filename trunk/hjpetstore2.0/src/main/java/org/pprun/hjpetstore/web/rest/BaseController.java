@@ -7,7 +7,7 @@ package org.pprun.hjpetstore.web.rest;
 import javax.servlet.http.HttpServletRequest;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.pprun.hjpetstore.service.rest.SignatureException;
+import org.pprun.common.util.SignatureException;
 import org.pprun.hjpetstore.persistence.jaxb.CommonError;
 import org.pprun.hjpetstore.service.ServiceException;
 import org.pprun.hjpetstore.service.rest.CodedValidationException;

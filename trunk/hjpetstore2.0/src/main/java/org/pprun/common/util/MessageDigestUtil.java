@@ -4,7 +4,6 @@
  */
 package org.pprun.common.util;
 
-import org.pprun.hjpetstore.service.rest.SignatureException;
 import java.io.UnsupportedEncodingException;
 import java.math.BigInteger;
 import java.nio.charset.Charset;
