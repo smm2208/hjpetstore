@@ -22,7 +22,7 @@ import org.pprun.common.util.MessageDigestUtil;
 import org.pprun.hjpetstore.service.UserService;
 import org.pprun.hjpetstore.service.rest.CodedValidationException;
 import org.pprun.hjpetstore.service.rest.ErrorCodeConstant;
-import org.pprun.hjpetstore.service.rest.SignatureException;
+import org.pprun.common.util.SignatureException;
 import org.springframework.web.context.WebApplicationContext;
 import org.springframework.web.context.support.WebApplicationContextUtils;
 
