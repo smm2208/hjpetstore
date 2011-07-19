@@ -10,7 +10,6 @@
     <property name="enabled" not-null="true" type="boolean"/>
     <!-- can't be unique: BLOB/TEXT Column Used in Key Specification Without a Key Length
          as length 512/1024 is too long for index -->
-
     <property name="publicKey" not-null="true" type="text"/>
     <property name="privateKey" not-null="true" type="text"/>
     <!-- We can't change the creation time, so map it with update="false" -->
