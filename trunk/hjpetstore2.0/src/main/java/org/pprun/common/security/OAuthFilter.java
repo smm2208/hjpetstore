@@ -40,7 +40,7 @@ public class OAuthFilter implements Filter {
     @Override
     public void init(FilterConfig config) throws ServletException {
         if (log.isInfoEnabled()) {
-            log.info("init HTTPCertificateAuthenticationFilter ...");
+            log.info("init OAuthFilter ...");
         }
 
         WebApplicationContext springContext = WebApplicationContextUtils.getWebApplicationContext(config.getServletContext());
