@@ -1,5 +1,6 @@
 package org.pprun.common.util;
 
+import java.sql.Time;
 import java.text.DateFormat;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
@@ -22,7 +23,8 @@ public final class CalendarUtil {
     public static final String SHORT_DATE_FORMAT = "yyyy-MM-dd";
     public static final String SIMPLE_DATE_FORMAT = "yyyy-MM-dd HH:mm:ss";
     public static final String ZONE_DATE_FORMAT = "EEE yyyy-MM-dd HH:mm:ss zzz";
-
+    public static final String TIME_FORMAT = "HH:mm";
+    
     public static int daysBetween(Calendar startTime, Calendar endTime) {
         if (startTime == null) {
             throw new IllegalArgumentException("startTime is null");
@@ -212,5 +214,18 @@ public final class CalendarUtil {
         cal.add(Calendar.DATE, -1);
 
         return cal;
+    }
+    
+    /**
+     * Format the Sql {@link Time}.
+     * 
+     * @param time
+     * @param format
+     * @return 
+     */
+    public static String formatSqlTime(Time time, String format) {
+        SimpleDateFormat sdf = new SimpleDateFormat(format);
+        
+        return sdf.format(time);
     }
 }
