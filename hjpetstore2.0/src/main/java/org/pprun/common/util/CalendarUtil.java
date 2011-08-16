@@ -26,7 +26,8 @@ public final class CalendarUtil {
     public static final String SHORT_DATE_FORMAT = "yyyy-MM-dd";
     public static final String SHORT_DATE_FORMAT_NO_DASH = "yyyyMMdd";
     public static final String SIMPLE_DATE_FORMAT = "yyyy-MM-dd HH:mm:ss";
-    public static final String ZONE_DATE_FORMAT = "EEE yyyy-MM-dd HH:mm:ss zzz";
+    public static final String ZONE_DATE_FORMAT_WITH_WEEK = "EEE yyyy-MM-dd HH:mm:ss zzz";
+    public static final String ZONE_DATE_FORMAT = "yyyy-MM-dd HH:mm:ss zzz";
     public static final String TIME_FORMAT = "HH:mm";
 
     public static int daysBetween(Calendar startTime, Calendar endTime) {
@@ -154,7 +155,7 @@ public final class CalendarUtil {
             return null;
         }
         if (format == null) {
-            format = ZONE_DATE_FORMAT;
+            format = ZONE_DATE_FORMAT_WITH_WEEK;
         }
         if (timeZone == null) {
             TimeZone.getTimeZone(CommonUtil.TIME_ZONE_UTC);
