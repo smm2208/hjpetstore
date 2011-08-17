@@ -1,3 +1,6 @@
+/*
+ * Pprun's Public Domain.
+ */
 package org.pprun.common.monitor;
 
 import java.util.Collections;
