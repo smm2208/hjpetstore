@@ -143,7 +143,7 @@ public class MessageDigestUtilTest {
     @Test
     public void calculateSignature() throws Exception {
         String httpMethod = "GET";
-        String date = CalendarUtil.getDateStringWithZone(Calendar.getInstance(), CalendarUtil.ZONE_DATE_FORMAT, TimeZone.getTimeZone(CommonUtil.TIME_ZONE_UTC), Locale.US);
+        String date = CalendarUtil.getDateStringWithZone(Calendar.getInstance(), CalendarUtil.ZONE_DATE_FORMAT_WITH_WEEK, TimeZone.getTimeZone(CommonUtil.TIME_ZONE_UTC), Locale.US);
         String secretKey = "59573390586f8694ebe597c607e9c754"; // pprun's
         String path = "/hjpetstore/rest/products/dog";
         String signature = MessageDigestUtil.calculateSignature(httpMethod, date, path, secretKey);

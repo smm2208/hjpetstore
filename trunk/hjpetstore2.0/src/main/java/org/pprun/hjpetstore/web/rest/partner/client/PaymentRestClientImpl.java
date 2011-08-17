@@ -219,7 +219,7 @@ public class PaymentRestClientImpl implements PaymentRestClient {
         requestHeaders.set("Accept-Charset", CommonUtil.UTF8);
 
         // Date
-        String date = CalendarUtil.getDateStringWithZone(Calendar.getInstance(), CalendarUtil.ZONE_DATE_FORMAT, TimeZone.getTimeZone(CommonUtil.TIME_ZONE_UTC), Locale.US);
+        String date = CalendarUtil.getDateStringWithZone(Calendar.getInstance(), CalendarUtil.ZONE_DATE_FORMAT_WITH_WEEK, TimeZone.getTimeZone(CommonUtil.TIME_ZONE_UTC), Locale.US);
         requestHeaders.set("Date", date);
 
         return requestHeaders;
