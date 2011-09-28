@@ -125,7 +125,7 @@
     <servlet-mapping>
         <servlet-name>hjpetstore</servlet-name>
         <!--
-          we mapped *.html to Spring DispatcherServlet, and 'htm' will be static/plain html file
+          we mapped *.htm to Spring DispatcherServlet, and 'html' will be static/plain html file
         -->
         <url-pattern>*.html</url-pattern>
         <!-- this is for rest path, as rest can pass the PathVariable in URL-->

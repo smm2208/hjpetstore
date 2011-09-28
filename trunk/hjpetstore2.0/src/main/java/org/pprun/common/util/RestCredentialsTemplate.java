@@ -9,7 +9,7 @@ import org.springframework.http.client.CommonsClientHttpRequestFactory;
 import org.springframework.web.client.RestTemplate;
 
 /**
- * RestTemplate Adapter to set {@linkHttpClient} {@link Credentials}. And can add SSL support as need.
+ * RestTemplate Adapter to set {@link HttpClient} {@link Credentials}. And can add SSL support as need.
  * 
  * @author <a href="mailto:quest.run@gmail.com">pprun</a>
  */
