@@ -62,7 +62,7 @@
     <!--         we won't want query cache
         <property name="hibernate.cache.use_query_cache">false</property>
         <property name="hibernate.cache.jbc.query.localonly">true</property>-->
-        <!-- http://community.jboss.org/docs/DOC-13434?uniqueTitle=false
+    <!-- http://community.jboss.org/docs/DOC-13434?uniqueTitle=false
             http://community.jboss.org/wiki/UsingInfinispanasJPAHibernateSecondLevelCacheProvider
         -->
     <property name="hibernate.cache.region.factory_class">org.hibernate.cache.infinispan.InfinispanRegionFactory</property>
