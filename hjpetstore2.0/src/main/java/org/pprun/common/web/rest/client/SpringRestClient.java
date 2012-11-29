@@ -63,6 +63,32 @@ public class SpringRestClient {
         return response.getBody();
     }
 
+    public <T> T doPut(Class<T> responseType, String acceptMediaType, String acceptCharset, String restUri, Object... uriVariables) {
+        HttpHeaders requestHeaders = createHttpHeader(acceptMediaType, acceptCharset);
+
+        HttpEntity<T> requestEntity = new HttpEntity(requestHeaders);
+        HttpEntity<T> response = restTemplate.exchange(restUri,
+                HttpMethod.PUT,
+                requestEntity,
+                responseType,
+                uriVariables);
+
+        return response.getBody();
+    }
+    
+    public <T> T doDelete(Class<T> responseType, String acceptMediaType, String acceptCharset, String restUri, Object... uriVariables) {
+        HttpHeaders requestHeaders = createHttpHeader(acceptMediaType, acceptCharset);
+
+        HttpEntity<T> requestEntity = new HttpEntity(requestHeaders);
+        HttpEntity<T> response = restTemplate.exchange(restUri,
+                HttpMethod.DELETE,
+                requestEntity,
+                responseType,
+                uriVariables);
+
+        return response.getBody();
+    }
+
     /**
      * help method create HTTP headers.
      * @return
